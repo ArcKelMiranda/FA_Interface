@@ -14,13 +14,11 @@ dependency_graph:
   specs: done
   design: done
   tasks: done
-  apply: work_unit_3_of_8_implemented_pending_size_exception_decision
+  apply: work_unit_3_of_8_done
   verify: work_unit_1_PASS, work_unit_2_PASS_WITH_WARNINGS
   archive: pending
-next_recommended: user/orchestrator decision on work unit 3's size:exception
-  (1149 changed lines, see work_unit_3_result) before commit/push/PR; then
-  sdd-verify for work unit 3; then sdd-apply for work unit 4 (Phase 4,
-  SQLite store)
+next_recommended: sdd-verify for work unit 3 (Phase 3, ports + MCP client
+  adapter, PR #4); then sdd-apply for work unit 4 (Phase 4, SQLite store)
 remote_repo: https://github.com/ArcKelMiranda/FA_Interface.git
 git_local: initialized, remote "origin" added, no commits yet
 chain_strategy: feature-branch-chain
@@ -197,12 +195,15 @@ work_unit_2_verify_result:
     sdd/direct-db-integration/verify-report/unit-2 using this state.yaml
     block plus verify-report.md Work Unit 2 section as source content.
 work_unit_3_result:
-  status: implemented_pending_size_exception_decision
+  status: done
   scope: Phase 3 ports + MCP client adapter, tasks 3.1-3.6, all 6 marked [x]
     in tasks.md with inline RESOLVED/NOTE annotations; docker-compose.yml
     and env.example fixed for task 3.2 (removed the wrong "yhat-internal"
     network, documented the real HTTP(S) connection path)
-  branch: NOT created yet -- see delivery_blocked below
+  branch: feat/ports-mcp-client (pushed to origin, tracking
+    origin/feat/ports-mcp-client)
+  pr_unit_3: https://github.com/ArcKelMiranda/FA_Interface/pull/4
+    (feat/ports-mcp-client to feat/domain-rules)
   files_changed:
     - src/ports/YhatReadPort.ts (created, 36 lines)
     - src/ports/ReviewStateStore.ts (created, 51 lines)
@@ -239,27 +240,33 @@ work_unit_3_result:
     Transport interface under exactOptionalPropertyTypes -- documented,
     narrow cast; callTool's overloaded return type resolved via a runtime
     type-guard instead of an unsafe cast)
-  delivery_blocked: true
-  delivery_blocked_reason: 'staged diff is 1149 changed lines (1125
-    insertions + 24 deletions across 15 files; git diff --cached --stat
-    after git add -A, then reset -- unstaged, nothing committed/pushed).
-    src/ alone is 1077 lines (11 new files, all additions -- MCP SDK client
-    wiring, three-layer error mapping, Zod validation, ports, and a
-    from-scratch Streamable-HTTP stub server needed for the integration
-    test harness). This exceeds both the session review_budget_lines (800)
-    and the native runtime attempt token''s stated max-changed-lines (800,
-    token work_unit_3_ports_mcp). The task prompt explicitly required
-    asking again with the actual number rather than assuming Work Unit 2''s
-    size:exception approval carries over. No further clean split identified
-    -- the port interfaces, the client, its error taxonomy, its Zod
-    validation, and the stub server it is tested against are one cohesive,
-    mutually-dependent unit; splitting the stub server or the integration
-    test into a separate PR would leave the prior PR''s RED+GREEN evidence
-    for 3.3-3.4 incomplete. All code is implemented, tested, typechecked,
-    and built successfully on disk (working tree modified, nothing staged
-    or committed) pending an explicit decision: accept size:exception and
-    proceed to commit/push/open PR #4 (feat/ports-mcp-client ->
-    feat/domain-rules), or direct a further split.'
+  delivery_blocked: false
+  budget_note: 'final diff feat/domain-rules...feat/ports-mcp-client is
+    1229 changed lines (1202 insertions + 27 deletions across 15 files),
+    above the default 400-line budget and above this session''s 800-line
+    review budget / the native runtime attempt token''s stated
+    max-changed-lines (800, token work_unit_3_ports_mcp). No further clean
+    split identified -- the port interfaces, the client, its error
+    taxonomy, its Zod validation, and the stub server it is tested against
+    are one cohesive, mutually-dependent unit; splitting the stub server or
+    the integration test into a separate PR would leave the prior PR''s
+    RED+GREEN evidence for 3.3-3.4 incomplete. Reported to the user with
+    the exact number before any push/PR action (not assumed carried over
+    from Work Unit 2''s size:exception). Explicitly accepted by the user as
+    size:exception; PR #4 opened at the full 1229-line diff, no further
+    split.'
+  forward_tracked_risks:
+    - cross-repo (non-blocking, not a facodes task) — yhat-mcp-server's
+      authorizeInternalMcpRequest gate hardcodes the expected
+      x-yhat-internal-identity value as the literal constant
+      "yhat-internal" server-side, rather than reading it from a
+      per-deployment secret, while facodes' YHAT_INTERNAL_IDENTITY env var
+      treats it as a real credential. Masked in production because Caddy's
+      header_up x-yhat-internal-identity yhat-internal overwrites whatever
+      facodes sends before it reaches yhat-mcp-server. A future direct
+      container-to-container deployment (bypassing Caddy) would need
+      YHAT_INTERNAL_IDENTITY set to the literal string "yhat-internal" to
+      pass that gate. Worth raising on the yhat-mcp-server side.
   engram_tooling_gap: mem_search/mem_get_observation/mem_save/mem_context/
     mem_save_prompt/mem_current_project were not present in this session's
     tool inventory (Read, Edit, Write, Glob, Grep, Bash only) -- same
