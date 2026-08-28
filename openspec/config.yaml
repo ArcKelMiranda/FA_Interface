@@ -1,0 +1,41 @@
+schema: spec-driven
+
+context: |
+  Tech stack: TypeScript end to end (Node 22, Fastify 5, @modelcontextprotocol/sdk
+    client, React 19 + Vite, Vitest, better-sqlite3) — decided in the
+    `direct-db-integration` design and scaffolded in Phase 1 (package.json,
+    tsconfig.json, vitest.config.ts, vite.config.ts, Dockerfile, docker-compose.yml).
+  Architecture: single-user internal tool for MR (BI consultant), writing FA
+    (Financial Advisor) Code registrations into the YHat SQL Server database via
+    yhat-mcp-server (MCP client), never a direct SQL Server connection.
+  Testing: Vitest is wired (`npm test`); Strict TDD Mode is now enforceable.
+    Phase 1 ships only a smoke test (src/smoke.test.ts) — Phase 2 onward is
+    real RED/GREEN domain coverage.
+  Style: TypeScript strict mode, flat interfaces, no `any` (see typescript skill).
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+    - Explicitly preserve or redesign the "manual review before production write"
+      safety property from PRD v5 (commented COMMIT/ROLLBACK) — do not silently
+      drop it when moving to a directly-connected app.
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+  apply:
+    guidelines:
+      - Follow existing code patterns
+    tdd: true
+    test_command: "npm test"
+  verify:
+    test_command: "npm test"
+    build_command: "npm run build"
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas

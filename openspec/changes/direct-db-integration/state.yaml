@@ -1,0 +1,90 @@
+change: direct-db-integration
+project: facodes
+status: exploring
+created: 2026-08-28
+artifact_store: hybrid
+session_preflight:
+  execution_mode: interactive
+  artifact_store: hybrid
+  delivery_strategy: ask-on-risk
+  review_budget_lines: 800
+dependency_graph:
+  explore: done
+  proposal: done
+  specs: done
+  design: done
+  tasks: done
+  apply: ready
+  verify: pending
+  archive: pending
+next_recommended: sdd-apply, starting with work unit 1 (Phase 0+1)
+remote_repo: https://github.com/ArcKelMiranda/FA_Interface.git
+git_local: initialized, remote "origin" added, no commits yet
+chain_strategy: feature-branch-chain
+delivery_confirmed: chained PRs, 8 total, one per phase group, tracker branch
+  pattern (feature-branch-chain) — PR 1 targets a tracker branch, each
+  subsequent PR targets the immediate previous PR branch, only the tracker
+  merges to main
+commit_pr_constraint: NO AI/Claude attribution anywhere — no Co-Authored-By
+  trailer, no "Generated with Claude Code" footer, no session links, in any
+  commit or PR for this project (user explicit instruction, saved to global
+  memory feedback_no_ai_attribution.md)
+review_workload_forecast:
+  estimated_changed_lines: 3500-6000
+  budget_400_risk: High
+  budget_800_risk: High
+  chained_prs_recommended: true
+  decision_needed_before_apply: true
+  suggested_split: 8 PRs, one per phase group (0+1 combined, then 2-8)
+design_decisions:
+  business_logic: hybrid split by determinism — deterministic rules (dedupe,
+    same-BranchRep=same-FA, Pershing/UBS parsing, catalog resolution) in
+    facodes domain/ as tested TS; fuzzy/judgment ranking behind optional
+    AnalysisAdvisor (LLM) port
+  datastore: embedded SQLite (better-sqlite3, WAL) on a named Docker volume;
+    cross-machine resumability via centralizing the service, not the DB
+  stack: TypeScript end-to-end — Node 22, Fastify 5, @modelcontextprotocol/sdk
+    client, React 19 + Vite, Vitest, better-sqlite3
+design_open_items_for_tasks_or_verification:
+  - confirm yhat-mcp-server's real Docker Compose network name (assumed
+    "yhat-internal" — not verifiable from local checkout)
+  - confirm real write-tool name/payload once yhat-mcp-server's write
+    extension is designed (design uses provisional yhat_write_codes)
+  - confirm better-sqlite3 prebuilds cover the bastion architecture, or add
+    a Dockerfile build stage
+  - archive v5 artifact source into archive/ before cutover (rollback
+    prerequisite, does not exist in this repo yet)
+architecture_decisions:
+  connection: facodes consumes the EXISTING yhat-mcp-server (sibling repo,
+    C:\Users\KelvinMiranda\Desktop\Yhat\yhat-mcp-server) as an MCP client; facodes
+    never talks to SQL Server directly
+  interface: a new, separate Dockerized UI service owned by facodes (successor
+    of the v5 artifact's table/drawer/fingerprint review UI), acting as MCP
+    client to yhat-mcp-server. yhat-mcp-server explicitly will not host a UI
+    (already decided in that project's own PRD).
+  reads: via yhat-mcp-server's existing tools (yhat_query_entities primarily,
+    yhat_query for admin raw SQL) — already implemented, no new work needed
+  writes: yhat-mcp-server must be EXTENDED with write tools (cross-project
+    change in the yhat-mcp-server repo, not part of facodes' own tasks) —
+    revives that project's own previously-deferred writer-role + confirmation
+    + audit-log design
+  safety: satisfied by yhat-mcp-server's confirmation-flow design (server
+    issues an approval-request signal, client — i.e. the facodes UI — requires
+    explicit user confirmation before the committing call)
+  credentials: facodes needs no SQL Server credentials at all (never connects
+    directly to the DB); only needs whatever internal-identity/access
+    credential yhat-mcp-server's HTTP mode requires
+cross_project_dependency:
+  project: yhat-mcp-server
+  path: C:\Users\KelvinMiranda\Desktop\Yhat\yhat-mcp-server
+  needed_change: add write tools (writer-role table whitelist, explicit
+    confirmation, execute, audit log) — currently 100% read-only
+  tracked_as: external dependency, not a facodes SDD task
+remaining_open_items:
+  - stack/framework for the new facodes Docker UI service (React carryover
+    from v5 is a natural fit; TS matches yhat-mcp-server's own language)
+  - UX for surfacing yhat-mcp-server's write-confirmation signal in the
+    review UI (map onto table/drawer/fingerprint flow)
+  - deployment relationship between facodes' Docker service and
+    yhat-mcp-server's existing bastion/compose setup (same network vs. separate)
+blocked_reason: null
