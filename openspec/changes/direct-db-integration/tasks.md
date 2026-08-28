@@ -46,15 +46,15 @@ Chain strategy: pending
 
 ## Phase 2: Domain (pure business rules, no I/O)
 
-- [ ] 2.1 RED+GREEN: `src/domain/dedupe.ts` — BranchRep vs live `Codes` dedupe; table-driven fixtures from PRD v5. (spec: fa-assignment — Same Branch+Rep Implies Same FA)
-- [ ] 2.2 RED+GREEN: `src/domain/fa-propagation.ts` — shared-BranchRep default FA suggestion. (spec: fa-assignment — Same Branch+Rep Implies Same FA)
-- [ ] 2.3 RED+GREEN: `src/domain/parsing/{pershing,ubs}.ts` — format-specific BranchRep parsing. (spec: fa-assignment — Format-Specific Resolution Rules)
-- [ ] 2.4 RED+GREEN: `src/domain/catalog-resolution.ts` — exact + normalized match for the 8 fields over live-queried catalogs. (spec: review-ui — Live Batch Table Rendering)
-- [ ] 2.5 RED+GREEN: `src/domain/status.ts` — derive `resolved`/`needs_confirm`/`needs_input`/`no_data`. (spec: review-ui — Accessibility-Safe Status Encoding)
-- [ ] 2.6 RED+GREEN: `src/domain/false-company.ts` — heuristic alert flag. (spec: fa-assignment — False-Company Detection Alert)
-- [ ] 2.7 RED+GREEN: `src/domain/unidentified.ts` — generic `-Unidentified` placeholder + distinct marking. (spec: fa-assignment — Generic Unidentified Placeholder)
-- [ ] 2.8 Define `BatchAnalysis` Zod schema + `contractVersion` in `src/domain/types.ts`; golden fixtures round-tripping legacy paste JSON and live output. (design Testing Strategy — Contract layer)
-- [ ] 2.9 REFACTOR: extract matching/normalization utilities shared by 2.1-2.4; keep all Phase 2 tests green.
+- [x] 2.1 RED+GREEN: `src/domain/dedupe.ts` — BranchRep vs live `Codes` dedupe; table-driven fixtures from PRD v5. (spec: fa-assignment — Same Branch+Rep Implies Same FA)
+- [x] 2.2 RED+GREEN: `src/domain/fa-propagation.ts` — shared-BranchRep default FA suggestion. (spec: fa-assignment — Same Branch+Rep Implies Same FA)
+- [x] 2.3 RED+GREEN: `src/domain/parsing/{pershing,ubs}.ts` — format-specific BranchRep parsing. (spec: fa-assignment — Format-Specific Resolution Rules) **DEVIATION/RISK**: the actual `gestion-fa-codes-sql` skill that encoded these rules is confirmed absent from disk (task 0.2). No concrete Pershing/UBS BranchRep grammar exists anywhere in this repo or the PRD, which only names the two formats without specifying their structure. Implemented documented best-effort placeholders (Pershing: fixed-width 4+4 numeric split; UBS: slash-separated) flagged inline in both files as unverified against real MR data — **MUST be validated before Phase 7 E2E**.
+- [x] 2.4 RED+GREEN: `src/domain/catalog-resolution.ts` — exact + normalized match for the 8 fields over live-queried catalogs. (spec: review-ui — Live Batch Table Rendering)
+- [x] 2.5 RED+GREEN: `src/domain/status.ts` — derive `resolved`/`needs_confirm`/`needs_input`/`no_data`. (spec: review-ui — Accessibility-Safe Status Encoding)
+- [x] 2.6 RED+GREEN: `src/domain/false-company.ts` — heuristic alert flag. (spec: fa-assignment — False-Company Detection Alert) **NOTE**: `design.md` Decision 1 assigns "false-company detection" broadly to the optional `AnalysisAdvisor` (LLM) port for fuzzy judgment. This task explicitly asks for a domain/-local heuristic instead; implemented as a cheap deterministic pattern pre-filter that runs on every batch for free and does not replace `AnalysisAdvisor`'s fuzzier judgment — not a contradiction of the design, but worth flagging since the two documents describe complementary, not identical, mechanisms.
+- [x] 2.7 RED+GREEN: `src/domain/unidentified.ts` — generic `-Unidentified` placeholder + distinct marking. (spec: fa-assignment — Generic Unidentified Placeholder)
+- [x] 2.8 Define `BatchAnalysis` Zod schema + `contractVersion` in `src/domain/types.ts`; golden fixtures round-tripping legacy paste JSON and live output. (design Testing Strategy — Contract layer)
+- [x] 2.9 REFACTOR: extract matching/normalization utilities shared by 2.1-2.4; keep all Phase 2 tests green. **RESOLVED**: extracted `normalizeBranchRep` (dedupe.ts, fa-propagation.ts) and `normalizeForMatch` (catalog-resolution.ts) into `src/domain/normalize.ts`; all 36 Phase 2 tests plus `npm run typecheck` and `npm run build` stayed green throughout, used as the approval-test safety net.
 
 ## Phase 3: Ports + MCP Client Adapter
 

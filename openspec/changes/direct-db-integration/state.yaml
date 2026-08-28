@@ -1,6 +1,6 @@
 change: direct-db-integration
 project: facodes
-status: exploring
+status: applying
 created: 2026-08-28
 artifact_store: hybrid
 session_preflight:
@@ -14,10 +14,11 @@ dependency_graph:
   specs: done
   design: done
   tasks: done
-  apply: ready
-  verify: pending
+  apply: work_unit_2_of_8_done
+  verify: work_unit_1_PASS
   archive: pending
-next_recommended: sdd-apply, starting with work unit 1 (Phase 0+1)
+next_recommended: sdd-verify for work unit 2 (Phase 2, domain rules), then
+  sdd-apply for work unit 3 (Phase 3, ports + MCP client)
 remote_repo: https://github.com/ArcKelMiranda/FA_Interface.git
 git_local: initialized, remote "origin" added, no commits yet
 chain_strategy: feature-branch-chain
@@ -88,3 +89,47 @@ remaining_open_items:
   - deployment relationship between facodes' Docker service and
     yhat-mcp-server's existing bastion/compose setup (same network vs. separate)
 blocked_reason: null
+work_unit_1_result:
+  status: done
+  pr_tracker: https://github.com/ArcKelMiranda/FA_Interface/pull/1 (draft, tracker to main)
+  pr_unit_1: https://github.com/ArcKelMiranda/FA_Interface/pull/2 (feat/archive-and-scaffold to tracker)
+  verified_independently_by_orchestrator: branches/commits/PR base-refs correct,
+    config.yaml correctly updated
+  confirmed_risk: gestion-fa-codes-sql Claude skill does NOT exist on disk
+    (checked ~/.claude/skills/ and ~/.config/opencode/skills/ directly,
+    zero matches) — the PRD v5 "stopgap" flow this rollback plan assumed
+    would remain usable cannot be relied on as-is
+  rollback_limitation: only PRD_revision_facodes.md was archivable; v5's
+    actual React artifact source never existed outside Claude.ai chat history
+work_unit_2_result:
+  status: implementation_done_locally, push/PR HELD pending explicit size
+    confirmation (see budget_note below) -- not yet pushed to origin
+  branch: feat/domain-rules (created off feat/archive-and-scaffold tip, not
+    yet pushed)
+  scope: Phase 2 domain rules only, tasks 2.1-2.9, all 9 marked [x] in
+    tasks.md with inline DEVIATION/NOTE/RESOLVED annotations
+  tests: 9 new domain test files, 36/36 passing (37/37 incl. the Phase 1
+    smoke test); npm run typecheck clean; npm run build succeeds
+  tdd_mode: strict TDD followed for every RED+GREEN-tagged task (2.1-2.7);
+    task 2.8 (types.ts/contract schema) also RED-first for consistency even
+    though not explicitly tagged; task 2.9 used the existing 36 tests as an
+    approval-test safety net through the refactor
+  commits: 6 work-unit-shaped commits on feat/domain-rules (dedupe+
+    propagation, pershing+ubs parsing, catalog-resolution+status,
+    false-company+unidentified, types.ts contract+fixtures, normalize.ts
+    refactor); zero AI/Claude attribution, conventional commit format
+  budget_note: 'session review_budget_lines was set to 400 for this unit;
+    actual staged diff for src/domain/ is 675 changed lines (21 files, all
+    additions). This exceeds 400 but is within the ~440-750/PR range the
+    original tasks.md Review Workload Forecast already implied for an
+    8-way phase-per-PR chain slicing ~3500-6000 total lines. Per explicit
+    apply-phase instructions to pause and ask rather than silently exceed
+    budget, push + PR creation are HELD until the user/orchestrator
+    confirms whether to proceed at 675 lines as one PR (task 2.1-2.9 has
+    no clean further split -- all 9 files are small, tightly related pure
+    functions feeding one contract) or requests a different split.'
+  engram_tooling_gap: mem_search/mem_get_observation/mem_save were not
+    present in this session's tool inventory (same gap independently noted
+    by the Work Unit 1 verify-report.md) -- apply-progress could only be
+    persisted to the OpenSpec side of the hybrid artifact store (this
+    state.yaml block + tasks.md checkboxes), not to Engram
