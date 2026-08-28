@@ -102,10 +102,10 @@ work_unit_1_result:
   rollback_limitation: only PRD_revision_facodes.md was archivable; v5's
     actual React artifact source never existed outside Claude.ai chat history
 work_unit_2_result:
-  status: implementation_done_locally, push/PR HELD pending explicit size
-    confirmation (see budget_note below) -- not yet pushed to origin
-  branch: feat/domain-rules (created off feat/archive-and-scaffold tip, not
-    yet pushed)
+  status: done
+  pr_unit_2: https://github.com/ArcKelMiranda/FA_Interface/pull/3 (feat/domain-rules
+    to feat/archive-and-scaffold)
+  branch: feat/domain-rules (pushed to origin, tracking origin/feat/domain-rules)
   scope: Phase 2 domain rules only, tasks 2.1-2.9, all 9 marked [x] in
     tasks.md with inline DEVIATION/NOTE/RESOLVED annotations
   tests: 9 new domain test files, 36/36 passing (37/37 incl. the Phase 1
@@ -120,14 +120,21 @@ work_unit_2_result:
     refactor); zero AI/Claude attribution, conventional commit format
   budget_note: 'session review_budget_lines was set to 400 for this unit;
     actual staged diff for src/domain/ is 675 changed lines (21 files, all
-    additions). This exceeds 400 but is within the ~440-750/PR range the
-    original tasks.md Review Workload Forecast already implied for an
-    8-way phase-per-PR chain slicing ~3500-6000 total lines. Per explicit
-    apply-phase instructions to pause and ask rather than silently exceed
-    budget, push + PR creation are HELD until the user/orchestrator
-    confirms whether to proceed at 675 lines as one PR (task 2.1-2.9 has
-    no clean further split -- all 9 files are small, tightly related pure
-    functions feeding one contract) or requests a different split.'
+    additions), 887 lines including carried-over SDD tracking files. This
+    exceeds 400 but is within the ~440-750/PR range the original tasks.md
+    Review Workload Forecast already implied for an 8-way phase-per-PR
+    chain slicing ~3500-6000 total lines, and task 2.1-2.9 has no clean
+    further split (9 small, tightly related pure functions feeding one
+    shared contract). Accepted explicitly by the user as size:exception;
+    PR #3 opened at the full 675/887-line diff, no further split.'
+  engram_tooling_gap: mem_search/mem_get_observation/mem_save were not
+    present in this session's tool inventory (namespace
+    mcp__plugin_engram_engram__ vs the orchestrator's working
+    mcp__engram__ -- per orchestrator, likely a plugin registration gap,
+    not an apply-phase defect). The orchestrator confirmed it will persist
+    the Engram side of the hybrid sdd/direct-db-integration/apply-progress
+    record itself from its own session using this state.yaml block plus
+    the apply phase's reported TDD Cycle Evidence -- no retry needed here.
   engram_tooling_gap: mem_search/mem_get_observation/mem_save were not
     present in this session's tool inventory (same gap independently noted
     by the Work Unit 1 verify-report.md) -- apply-progress could only be
