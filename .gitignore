@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!env.example
+*.log
+.DS_Store
+/data/
+# SDD tooling's local context cache (same convention as the sibling
+# yhat-mcp-server repo) — regenerated per machine, not project source.
+.atl/
