@@ -14,11 +14,13 @@ dependency_graph:
   specs: done
   design: done
   tasks: done
-  apply: work_unit_2_of_8_done
+  apply: work_unit_3_of_8_implemented_pending_size_exception_decision
   verify: work_unit_1_PASS, work_unit_2_PASS_WITH_WARNINGS
   archive: pending
-next_recommended: sdd-apply for work unit 3 (Phase 3, ports + MCP client
-  adapter)
+next_recommended: user/orchestrator decision on work unit 3's size:exception
+  (1149 changed lines, see work_unit_3_result) before commit/push/PR; then
+  sdd-verify for work unit 3; then sdd-apply for work unit 4 (Phase 4,
+  SQLite store)
 remote_repo: https://github.com/ArcKelMiranda/FA_Interface.git
 git_local: initialized, remote "origin" added, no commits yet
 chain_strategy: feature-branch-chain
@@ -47,8 +49,20 @@ design_decisions:
   stack: TypeScript end-to-end — Node 22, Fastify 5, @modelcontextprotocol/sdk
     client, React 19 + Vite, Vitest, better-sqlite3
 design_open_items_for_tasks_or_verification:
-  - confirm yhat-mcp-server's real Docker Compose network name (assumed
-    "yhat-internal" — not verifiable from local checkout)
+  - RESOLVED (work unit 3, task 3.2) — confirmed yhat-mcp-server's real
+    docker-compose.yml (sibling repo, read directly) declares NO external
+    or custom Docker network at all; it uses Compose's implicit default
+    network and only publishes 127.0.0.1:3000 on the host (loopback only,
+    not reachable container-to-container from facodes). The
+    "yhat-internal" network name in facodes' own docker-compose.yml was
+    simply wrong, not merely unverified — removed. facodes now reaches
+    yhat-mcp-server over HTTP(S) via YHAT_INTERNAL_HOST/YHAT_MCP_URL
+    (default https://mcp.internal.yhat/mcp), which in production routes
+    through yhat-mcp-server's own Caddy-fronted yhat-mcp-proxy service
+    (ec2 compose profile, TLS 443). Local dev has two documented options
+    (see docker-compose.yml comment): point at a reachable yhat-mcp-server
+    instance, or share a manually-created Docker network. No Docker
+    network sharing is required by design.
   - confirm real write-tool name/payload once yhat-mcp-server's write
     extension is designed (design uses provisional yhat_write_codes)
   - confirm better-sqlite3 prebuilds cover the bastion architecture, or add
@@ -182,3 +196,75 @@ work_unit_2_verify_result:
     the Engram side itself under topic key
     sdd/direct-db-integration/verify-report/unit-2 using this state.yaml
     block plus verify-report.md Work Unit 2 section as source content.
+work_unit_3_result:
+  status: implemented_pending_size_exception_decision
+  scope: Phase 3 ports + MCP client adapter, tasks 3.1-3.6, all 6 marked [x]
+    in tasks.md with inline RESOLVED/NOTE annotations; docker-compose.yml
+    and env.example fixed for task 3.2 (removed the wrong "yhat-internal"
+    network, documented the real HTTP(S) connection path)
+  branch: NOT created yet -- see delivery_blocked below
+  files_changed:
+    - src/ports/YhatReadPort.ts (created, 36 lines)
+    - src/ports/ReviewStateStore.ts (created, 51 lines)
+    - src/ports/AnalysisAdvisor.ts (created, 41 lines)
+    - src/mcp/entity-query.ts (created, 49 lines)
+    - src/mcp/entity-query.test.ts (created)
+    - src/mcp/errors.ts (created, 42 lines)
+    - src/mcp/yhat-client.ts (created, 337 lines -- the client adapter itself)
+    - src/mcp/yhat-client.test.ts (created -- config/host-allowlist/retry/
+      validation-before-wire-call unit tests)
+    - src/mcp/yhat-client.integration.test.ts (created -- success/tool-error/
+      empty-result/timeout/auth scenarios against the stub server)
+    - src/mcp/admin-tool-boundary.test.ts (created -- structural boundary test)
+    - src/mcp/__fixtures__/stub-mcp-server.ts (created, 152 lines -- hand-rolled
+      Streamable-HTTP MCP stub used only by the integration test)
+    - docker-compose.yml (modified -- removed wrong "yhat-internal" network,
+      default YHAT_INTERNAL_HOST now mcp.internal.yhat, added explanatory
+      comment)
+    - env.example (modified -- same default, added YHAT_MCP_URL override doc)
+    - openspec/changes/direct-db-integration/tasks.md (modified -- 3.1-3.6
+      marked [x])
+    - openspec/changes/direct-db-integration/state.yaml (this file)
+  tests: 65/65 passing full suite (28 new: 7 entity-query, 2 admin-boundary,
+    13 yhat-client unit, 6 yhat-client integration); npm run typecheck
+    clean; npm run build succeeds (tsc + vite)
+  tdd_mode: strict TDD followed for all three RED+GREEN-tagged tasks
+    (3.3-3.5); confirmed RED by running npm test -- src/mcp against
+    yhat-client.test.ts/yhat-client.integration.test.ts/admin-tool-boundary
+    .test.ts before yhat-client.ts existed (3 failed suites, "Cannot find
+    module ./yhat-client.js"), then implemented to GREEN in one pass, fixed
+    one real bug the tests caught (IPv6 "::1" host-normalization regex
+    incorrectly treated as "port 1"), then fixed two tsc --noEmit errors
+    (SDK's own StreamableHTTPClientTransport does not satisfy its own
+    Transport interface under exactOptionalPropertyTypes -- documented,
+    narrow cast; callTool's overloaded return type resolved via a runtime
+    type-guard instead of an unsafe cast)
+  delivery_blocked: true
+  delivery_blocked_reason: 'staged diff is 1149 changed lines (1125
+    insertions + 24 deletions across 15 files; git diff --cached --stat
+    after git add -A, then reset -- unstaged, nothing committed/pushed).
+    src/ alone is 1077 lines (11 new files, all additions -- MCP SDK client
+    wiring, three-layer error mapping, Zod validation, ports, and a
+    from-scratch Streamable-HTTP stub server needed for the integration
+    test harness). This exceeds both the session review_budget_lines (800)
+    and the native runtime attempt token''s stated max-changed-lines (800,
+    token work_unit_3_ports_mcp). The task prompt explicitly required
+    asking again with the actual number rather than assuming Work Unit 2''s
+    size:exception approval carries over. No further clean split identified
+    -- the port interfaces, the client, its error taxonomy, its Zod
+    validation, and the stub server it is tested against are one cohesive,
+    mutually-dependent unit; splitting the stub server or the integration
+    test into a separate PR would leave the prior PR''s RED+GREEN evidence
+    for 3.3-3.4 incomplete. All code is implemented, tested, typechecked,
+    and built successfully on disk (working tree modified, nothing staged
+    or committed) pending an explicit decision: accept size:exception and
+    proceed to commit/push/open PR #4 (feat/ports-mcp-client ->
+    feat/domain-rules), or direct a further split.'
+  engram_tooling_gap: mem_search/mem_get_observation/mem_save/mem_context/
+    mem_save_prompt/mem_current_project were not present in this session's
+    tool inventory (Read, Edit, Write, Glob, Grep, Bash only) -- same
+    recurring gap independently noted for apply work unit 2, the Work Unit
+    1 verify session, and the Work Unit 2 verify session. apply-progress
+    could only be persisted to the OpenSpec side of the hybrid artifact
+    store (this state.yaml block plus tasks.md checkboxes), not to Engram
+    under sdd/direct-db-integration/apply-progress/unit-3 as instructed.
