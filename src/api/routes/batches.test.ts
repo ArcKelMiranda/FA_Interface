@@ -3,7 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { BatchAnalysis } from "../../domain/types.js";
 import type { EntityQuery, YhatReadPort } from "../../ports/YhatReadPort.js";
-import type { FieldOverride, ReviewStateStore, WritePlan } from "../../ports/ReviewStateStore.js";
+import type {
+  FieldOverride,
+  KeyedFieldOverride,
+  ReviewStateStore,
+  WritePlan,
+} from "../../ports/ReviewStateStore.js";
 import { InvalidOverrideFieldError } from "../../store/sqlite/errors.js";
 import { registerBatchesRoutes } from "./batches.js";
 
@@ -49,6 +54,7 @@ function makeStore(overrides: Partial<ReviewStateStore> = {}): ReviewStateStore 
     putOverride: vi.fn(
       async (_batchId: string, _codeId: string, _field: string, _override: FieldOverride) => {},
     ),
+    listOverrides: vi.fn(async (_batchId: string) => [] as KeyedFieldOverride[]),
     savePlan: vi.fn(async (_batchId: string, _plan: WritePlan) => {}),
     recordConfirmation: vi.fn(async (_batchId: string, _planId: string) => {}),
     ...overrides,
@@ -61,29 +67,107 @@ function buildApp(readPort: YhatReadPort, store: ReviewStateStore): FastifyInsta
   return app;
 }
 
+/**
+ * Read-port stub that returns canned rows per entity so `resolveBatch`
+ * (the live orchestrator) can produce a meaningful BatchAnalysis. Mirrors
+ * the shape used by `src/domain/resolve-batch.test.ts` and exercises the
+ * production-parity path end-to-end without a real MCP server.
+ */
+function makeReadPortWithLiveData(): YhatReadPort {
+  const rowsByEntity: Record<string, Record<string, unknown>[]> = {
+    Codes: [
+      {
+        Id: "code-1",
+        BranchRep: "0001-0002",
+        RepName: "Jane Doe",
+        Office: "NY",
+        Country: "US",
+        Region: "NE",
+        IBD: "IBD1",
+        NSCC: "NSCC1",
+        Origin: "PERSHING",
+        Dealer: "D1",
+        Agente: "A1",
+      },
+    ],
+    Offices: [{ Id: 100, Name: "NY" }],
+    Countries: [{ Id: 1, Name: "US" }],
+    Regions: [{ Id: 10, Name: "NE" }],
+    IBDs: [{ Id: 50, Name: "IBD1" }],
+    Origins: [{ Id: 5, Name: "PERSHING" }],
+    Dealers: [{ Id: 60, Name: "D1" }],
+    Agentes: [{ Id: 70, Name: "A1" }],
+    FAs: [{ Id: 999, Name: "Existing Fa" }],
+  };
+  return makeReadPort({
+    queryEntities: vi.fn(async (query: EntityQuery) => rowsByEntity[query.entity] ?? []),
+  });
+}
+
 describe("GET /api/batches/:batchId (spec review-ui — Live Batch Table Rendering)", () => {
-  it("returns the persisted batch after a successful live read", async () => {
-    const batch = makeBatch();
-    const readPort = makeReadPort();
-    const store = makeStore({ loadBatch: vi.fn(async () => batch) });
+  it("returns a live-resolved BatchAnalysis when MCP returns matching codes and catalogs", async () => {
+    const readPort = makeReadPortWithLiveData();
+    const store = makeStore();
     const app = buildApp(readPort, store);
 
     const response = await app.inject({ method: "GET", url: "/api/batches/42" });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ batch });
-    expect(readPort.queryEntities).toHaveBeenCalledTimes(1);
+    const body = response.json() as { batch: BatchAnalysis };
+    expect(body.batch.codes).toHaveLength(1);
+    expect(body.batch.codes[0]!.fields.office).toMatchObject({ value: "NY", status: "resolved" });
+    expect(body.batch.codes[0]!.fields.agente).toMatchObject({ value: "A1", status: "resolved" });
+    // store.loadBatch is never consulted in the live path — the only
+    // store call is listOverrides, which is the merge seam.
+    expect(store.loadBatch).not.toHaveBeenCalled();
+    expect(store.listOverrides).toHaveBeenCalledWith("42");
   });
 
-  it("returns 404 when no batch is persisted for the reference", async () => {
-    const readPort = makeReadPort();
+  it("returns a 200 with empty codes when MCP returns no rows for the batch (brand-new batch case, issue #15)", async () => {
+    const readPort = makeReadPort(); // queryEntities returns [] for any entity
     const store = makeStore();
     const app = buildApp(readPort, store);
 
     const response = await app.inject({ method: "GET", url: "/api/batches/does-not-exist" });
 
-    expect(response.statusCode).toBe(404);
-    expect(response.json()).toMatchObject({ error: "batch_not_found" });
+    expect(response.statusCode).toBe(200);
+    // JSON has no NaN, so the unparseable `Number("does-not-exist")` round-trips
+    // as `null`. What matters: codes is empty and there is NO `error` field —
+    // a brand-new batch is a live empty resolution, not 404.
+    expect(response.json()).toMatchObject({
+      batch: { codes: [] },
+    });
+    expect(response.json()).not.toMatchObject({ error: expect.anything() });
+  });
+
+  it("layers persisted user overrides on top of the live resolution so user-edited fields win", async () => {
+    const readPort = makeReadPortWithLiveData();
+    const store = makeStore({
+      listOverrides: vi.fn(async () => [
+        {
+          codeId: "code-1",
+          field: "office",
+          override: {
+            value: "User-Edited Office",
+            valueId: 999,
+            overriddenAt: "2026-08-31T02:00:00.000Z",
+          },
+        },
+      ]),
+    });
+    const app = buildApp(readPort, store);
+
+    const response = await app.inject({ method: "GET", url: "/api/batches/42" });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as { batch: BatchAnalysis };
+    expect(body.batch.codes[0]!.fields.office).toMatchObject({
+      value: "User-Edited Office",
+      valueId: 999,
+      status: "resolved",
+    });
+    // Non-overridden fields are still live.
+    expect(body.batch.codes[0]!.fields.country.value).toBe("US");
   });
 });
 

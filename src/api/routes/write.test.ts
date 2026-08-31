@@ -2,7 +2,12 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { describe, expect, it, vi } from "vitest";
 
 import type { BatchAnalysis } from "../../domain/types.js";
-import type { FieldOverride, ReviewStateStore, WritePlan } from "../../ports/ReviewStateStore.js";
+import type {
+  FieldOverride,
+  KeyedFieldOverride,
+  ReviewStateStore,
+  WritePlan,
+} from "../../ports/ReviewStateStore.js";
 import { PLAN_CONFIRMATION_ERROR_KIND, PlanConfirmationError } from "../../store/sqlite/errors.js";
 import { registerWriteRoutes, type WriteRouteDeps, type WriteToolClient } from "./write.js";
 
@@ -46,6 +51,7 @@ function makeStore(overrides: Partial<ReviewStateStore> = {}): ReviewStateStore 
     putOverride: vi.fn(
       async (_batchId: string, _codeId: string, _field: string, _override: FieldOverride) => {},
     ),
+    listOverrides: vi.fn(async (_batchId: string) => [] as KeyedFieldOverride[]),
     savePlan: vi.fn(async (_batchId: string, _plan: WritePlan) => {}),
     recordConfirmation: vi.fn(async (_batchId: string, _planId: string) => {}),
     ...overrides,

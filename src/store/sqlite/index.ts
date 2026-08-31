@@ -28,6 +28,7 @@ import Database, { type Database as DatabaseType } from "better-sqlite3";
 import type { BatchAnalysis, CodeEntry } from "../../domain/types.js";
 import type {
   FieldOverride,
+  KeyedFieldOverride,
   ReviewStateStore,
   WritePlan,
 } from "../../ports/ReviewStateStore.js";
@@ -145,6 +146,31 @@ export class SqliteReviewStateStore implements ReviewStateStore {
         valueId: override.valueId ?? null,
         overriddenAt: override.overriddenAt,
       });
+  }
+
+  async listOverrides(batchId: string): Promise<KeyedFieldOverride[]> {
+    const rows = this.db
+      .prepare(
+        "SELECT code_id, field, value, value_id, overridden_at FROM overrides WHERE batch_id = ? ORDER BY overridden_at ASC",
+      )
+      .all(batchId) as Array<{
+      code_id: string;
+      field: string;
+      value: string;
+      value_id: number | null;
+      overridden_at: string;
+    }>;
+
+    return rows.map((row) => {
+      const override: FieldOverride = {
+        value: row.value,
+        overriddenAt: row.overridden_at,
+      };
+      if (row.value_id !== null) {
+        override.valueId = row.value_id;
+      }
+      return { codeId: row.code_id, field: row.field, override };
+    });
   }
 
   async savePlan(batchId: string, plan: WritePlan): Promise<void> {
