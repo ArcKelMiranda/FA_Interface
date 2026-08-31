@@ -16,10 +16,10 @@ dependency_graph:
   tasks: done
   apply: work_unit_5_of_8_done
   verify: work_unit_1_PASS, work_unit_2_PASS_WITH_WARNINGS, work_unit_3_PASS_WITH_WARNINGS,
-    work_unit_4_PASS_WITH_WARNINGS
+    work_unit_4_PASS_WITH_WARNINGS, work_unit_5_PASS_WITH_WARNINGS
   archive: pending
-next_recommended: sdd-verify for work unit 5 (Phase 5, API layer, both PR #6
-  and PR #7 splits), then sdd-apply for work unit 6 (Phase 6, Web SPA)
+next_recommended: sdd-apply for work unit 6 (Phase 6, Web SPA) -- work unit 5
+  (Phase 5 API layer, PR #6 + PR #7) verified PASS WITH WARNINGS
 remote_repo: https://github.com/ArcKelMiranda/FA_Interface.git
 git_local: initialized, remote "origin" added, no commits yet
 chain_strategy: feature-branch-chain
@@ -488,3 +488,30 @@ work_unit_5_result:
       follow-up
   ai_attribution_scan: clean across all 6 implementation commits plus both
     docs commits, both PR bodies
+work_unit_5_verify_result:
+  status: PASS_WITH_WARNINGS
+  verdict: pass_with_warnings
+  critical_findings: 0
+  warnings:
+    - RESOLVED (post-verify fix, pushed to feat/api-write-config, updates
+      PR #7 in place): isFullyResolved()'s FA check used
+      code.fa.every(...), vacuously true for an empty fa array -- a code
+      with zero FA candidates trivially passed the write-plan
+      fully-resolved gate. Fixed by requiring code.fa.length > 0 as well.
+      RED test added first (write.test.ts: "returns 409 when a code has
+      zero FA candidates, not vacuously resolved"), confirmed failing
+      (200 instead of 409), then fixed. The fix also exposed a second,
+      independent instance of the same masked bug: app.test.ts's own
+      "resolved" batch fixture had fa:[] and was silently relying on the
+      vacuous-true behavior to pass task 5.7's WRITE_TOOLS_ENABLED
+      propagation test -- fixed the fixture to include a real resolved FA
+      entry, matching write.test.ts's pattern. Full suite 101/101 after
+      both fixes (up from 100/100), typecheck/build clean.
+    - documentation-only note (not a defect): verify's AI-attribution scan
+      covered SDD-tracking commits via the aggregate grep rather than
+      itemizing them separately -- no action needed
+  spec_compliance: 4/5 in-scope requirements PARTIAL with real passing
+    API-layer evidence (UI rendering deferred to Phase 6); 1/5
+    (color-independent disabled-state) is 100% UI scope, correctly
+    untested here. Strict envelope reports 0/0 per the Work Unit 2/3
+    convention (only fully end-to-end compliant scenarios count)
