@@ -1,0 +1,43 @@
+{
+  "batchNo": 5,
+  "snapshot": "2026-08-23",
+  "codes": [
+    {
+      "id": "c1",
+      "branchRep": "1234-5678",
+      "repName": "Jane Rep",
+      "dupcheck": "nuevo",
+      "fields": {
+        "office": { "value": "Miami", "valueId": 123, "status": "resolved", "evidence": "exact catalog match" },
+        "country": { "value": "US", "valueId": 1, "status": "resolved", "evidence": "exact catalog match" },
+        "region": { "value": "LatAm", "valueId": 2, "status": "needs_confirm", "evidence": "normalized match", "alternatives": [{ "label": "US Offshore" }] },
+        "ibd": { "value": "", "status": "no_data", "evidence": "no live data returned" },
+        "nscc": { "value": "0221", "status": "resolved", "evidence": "exact catalog match" },
+        "origin": { "value": "Pershing", "status": "resolved", "evidence": "declared by source file" },
+        "dealer": { "value": "Unknown Dealer", "status": "needs_input", "evidence": "no catalog match" },
+        "agente": { "value": "Vontobel", "status": "resolved", "evidence": "exact catalog match" }
+      },
+      "fa": [
+        {
+          "id": 123,
+          "name": "John FA",
+          "state": "existente",
+          "status": "resolved",
+          "evidence": "matched by BranchRep precedent",
+          "alternatives": [{ "label": "Alt FA", "faId": 456, "faName": "Alt FA Name" }]
+        }
+      ],
+      "faDiscarded": [{ "id": 789, "name": "Discarded FA", "reason": "wrong branch" }],
+      "references": [
+        {
+          "title": "Precedent codes",
+          "description": "Other codes sharing this BranchRep",
+          "columns": ["id", "fa"],
+          "rows": [{ "id": "c0", "fa": "John FA" }],
+          "footnote": "n=1"
+        }
+      ],
+      "alerts": ["false-company pattern suspected"]
+    }
+  ]
+}

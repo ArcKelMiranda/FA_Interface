@@ -1,6 +1,6 @@
 change: direct-db-integration
 project: facodes
-status: exploring
+status: applying
 created: 2026-08-28
 artifact_store: hybrid
 session_preflight:
@@ -14,10 +14,11 @@ dependency_graph:
   specs: done
   design: done
   tasks: done
-  apply: ready
-  verify: pending
+  apply: work_unit_3_of_8_done
+  verify: work_unit_1_PASS, work_unit_2_PASS_WITH_WARNINGS, work_unit_3_PASS_WITH_WARNINGS
   archive: pending
-next_recommended: sdd-apply, starting with work unit 1 (Phase 0+1)
+next_recommended: sdd-apply for work unit 4 (Phase 4, SQLite store), branching
+  from feat/ports-mcp-client once PR #4 merges
 remote_repo: https://github.com/ArcKelMiranda/FA_Interface.git
 git_local: initialized, remote "origin" added, no commits yet
 chain_strategy: feature-branch-chain
@@ -46,8 +47,20 @@ design_decisions:
   stack: TypeScript end-to-end — Node 22, Fastify 5, @modelcontextprotocol/sdk
     client, React 19 + Vite, Vitest, better-sqlite3
 design_open_items_for_tasks_or_verification:
-  - confirm yhat-mcp-server's real Docker Compose network name (assumed
-    "yhat-internal" — not verifiable from local checkout)
+  - RESOLVED (work unit 3, task 3.2) — confirmed yhat-mcp-server's real
+    docker-compose.yml (sibling repo, read directly) declares NO external
+    or custom Docker network at all; it uses Compose's implicit default
+    network and only publishes 127.0.0.1:3000 on the host (loopback only,
+    not reachable container-to-container from facodes). The
+    "yhat-internal" network name in facodes' own docker-compose.yml was
+    simply wrong, not merely unverified — removed. facodes now reaches
+    yhat-mcp-server over HTTP(S) via YHAT_INTERNAL_HOST/YHAT_MCP_URL
+    (default https://mcp.internal.yhat/mcp), which in production routes
+    through yhat-mcp-server's own Caddy-fronted yhat-mcp-proxy service
+    (ec2 compose profile, TLS 443). Local dev has two documented options
+    (see docker-compose.yml comment): point at a reachable yhat-mcp-server
+    instance, or share a manually-created Docker network. No Docker
+    network sharing is required by design.
   - confirm real write-tool name/payload once yhat-mcp-server's write
     extension is designed (design uses provisional yhat_write_codes)
   - confirm better-sqlite3 prebuilds cover the bastion architecture, or add
@@ -88,3 +101,177 @@ remaining_open_items:
   - deployment relationship between facodes' Docker service and
     yhat-mcp-server's existing bastion/compose setup (same network vs. separate)
 blocked_reason: null
+work_unit_1_result:
+  status: done
+  pr_tracker: https://github.com/ArcKelMiranda/FA_Interface/pull/1 (draft, tracker to main)
+  pr_unit_1: https://github.com/ArcKelMiranda/FA_Interface/pull/2 (feat/archive-and-scaffold to tracker)
+  verified_independently_by_orchestrator: branches/commits/PR base-refs correct,
+    config.yaml correctly updated
+  confirmed_risk: gestion-fa-codes-sql Claude skill does NOT exist on disk
+    (checked ~/.claude/skills/ and ~/.config/opencode/skills/ directly,
+    zero matches) — the PRD v5 "stopgap" flow this rollback plan assumed
+    would remain usable cannot be relied on as-is
+  rollback_limitation: only PRD_revision_facodes.md was archivable; v5's
+    actual React artifact source never existed outside Claude.ai chat history
+work_unit_2_result:
+  status: done
+  pr_unit_2: https://github.com/ArcKelMiranda/FA_Interface/pull/3 (feat/domain-rules
+    to feat/archive-and-scaffold)
+  branch: feat/domain-rules (pushed to origin, tracking origin/feat/domain-rules)
+  scope: Phase 2 domain rules only, tasks 2.1-2.9, all 9 marked [x] in
+    tasks.md with inline DEVIATION/NOTE/RESOLVED annotations
+  tests: 9 new domain test files, 36/36 passing (37/37 incl. the Phase 1
+    smoke test); npm run typecheck clean; npm run build succeeds
+  tdd_mode: strict TDD followed for every RED+GREEN-tagged task (2.1-2.7);
+    task 2.8 (types.ts/contract schema) also RED-first for consistency even
+    though not explicitly tagged; task 2.9 used the existing 36 tests as an
+    approval-test safety net through the refactor
+  commits: 6 work-unit-shaped commits on feat/domain-rules (dedupe+
+    propagation, pershing+ubs parsing, catalog-resolution+status,
+    false-company+unidentified, types.ts contract+fixtures, normalize.ts
+    refactor); zero AI/Claude attribution, conventional commit format
+  budget_note: 'session review_budget_lines was set to 400 for this unit;
+    actual staged diff for src/domain/ is 675 changed lines (21 files, all
+    additions), 887 lines including carried-over SDD tracking files. This
+    exceeds 400 but is within the ~440-750/PR range the original tasks.md
+    Review Workload Forecast already implied for an 8-way phase-per-PR
+    chain slicing ~3500-6000 total lines, and task 2.1-2.9 has no clean
+    further split (9 small, tightly related pure functions feeding one
+    shared contract). Accepted explicitly by the user as size:exception;
+    PR #3 opened at the full 675/887-line diff, no further split.'
+  engram_tooling_gap: mem_search/mem_get_observation/mem_save were not
+    present in this session's tool inventory (namespace
+    mcp__plugin_engram_engram__ vs the orchestrator's working
+    mcp__engram__ -- per orchestrator, likely a plugin registration gap,
+    not an apply-phase defect). The orchestrator confirmed it will persist
+    the Engram side of the hybrid sdd/direct-db-integration/apply-progress
+    record itself from its own session using this state.yaml block plus
+    the apply phase's reported TDD Cycle Evidence -- no retry needed here.
+  engram_tooling_gap: mem_search/mem_get_observation/mem_save were not
+    present in this session's tool inventory (same gap independently noted
+    by the Work Unit 1 verify-report.md) -- apply-progress could only be
+    persisted to the OpenSpec side of the hybrid artifact store (this
+    state.yaml block + tasks.md checkboxes), not to Engram
+work_unit_2_verify_result:
+  status: PASS_WITH_WARNINGS
+  verdict: pass_with_warnings
+  scope: Work Unit 2 ONLY, Phase 2 domain, tasks 2.1-2.9
+  reproduced_independently: npm install, npm test -- src/domain (36/36),
+    npm test full suite (37/37), npm run typecheck (clean), npm run build
+    (clean), gh pr view 3, git log AI-attribution scan (clean), git diff
+    --stat for src/domain (675 lines, exact match to PR body claim)
+  critical_findings: 0
+  warnings:
+    - task 2.9 REFACTOR git history is not commit-by-commit buildable;
+      dedupe.ts and fa-propagation.ts already import ./normalize.js at
+      commit 7eb5309 (the first domain commit), six commits before
+      normalize.ts is created in 65bca37; same for catalog-resolution.ts
+      at commit e4d0be2. Final HEAD state is fully green (independently
+      reproduced) but the commit sequence itself is not bisectable/provable
+      as a literal RED-GREEN-REFACTOR trail.
+    - Format-Specific Resolution Rules (fa-assignment) has no dispatcher
+      yet selecting Pershing/UBS/generic parsing by a code's Origin field;
+      parser functions exist and are tested standalone only. Consistent
+      with this unit's no-I/O scope; recommend an explicit follow-up task
+      in a later phase.
+    - Work Unit 1's verify-report.md undercounted the fa-assignment spec
+      (stated 6 requirements/7 scenarios; actual count is 7 requirements/
+      8 scenarios -- "Override Marking and Restore" was omitted). Does not
+      affect WU1's PASS verdict.
+  spec_compliance: 0/14 full end-to-end scenarios compliant across
+    fa-assignment (7 req/8 scenarios) and review-ui (5 req/6 scenarios) --
+    expected and honestly declared for a domain-only, no-I/O unit; 5/14
+    scenarios have a genuine passing domain-layer prerequisite test
+  ai_attribution_scan: clean, zero Co-Authored-By/Claude Code footers/
+    session links across all commits and PR #3 body
+  engram_tooling_gap: mem_search/mem_get_observation/mem_save were not
+    present in this verify session own tool inventory either (Read, Grep,
+    Glob, Bash only) -- same recurring gap noted for apply work unit 2 and
+    the Work Unit 1 verify session. The verify-report was persisted to the
+    OpenSpec side of the hybrid artifact store only (this state.yaml block
+    plus openspec/changes/direct-db-integration/verify-report.md, Work Unit
+    2 section appended after Work Unit 1). The orchestrator must persist
+    the Engram side itself under topic key
+    sdd/direct-db-integration/verify-report/unit-2 using this state.yaml
+    block plus verify-report.md Work Unit 2 section as source content.
+work_unit_3_result:
+  status: done
+  scope: Phase 3 ports + MCP client adapter, tasks 3.1-3.6, all 6 marked [x]
+    in tasks.md with inline RESOLVED/NOTE annotations; docker-compose.yml
+    and env.example fixed for task 3.2 (removed the wrong "yhat-internal"
+    network, documented the real HTTP(S) connection path)
+  branch: feat/ports-mcp-client (pushed to origin, tracking
+    origin/feat/ports-mcp-client)
+  pr_unit_3: https://github.com/ArcKelMiranda/FA_Interface/pull/4
+    (feat/ports-mcp-client to feat/domain-rules)
+  files_changed:
+    - src/ports/YhatReadPort.ts (created, 36 lines)
+    - src/ports/ReviewStateStore.ts (created, 51 lines)
+    - src/ports/AnalysisAdvisor.ts (created, 41 lines)
+    - src/mcp/entity-query.ts (created, 49 lines)
+    - src/mcp/entity-query.test.ts (created)
+    - src/mcp/errors.ts (created, 42 lines)
+    - src/mcp/yhat-client.ts (created, 337 lines -- the client adapter itself)
+    - src/mcp/yhat-client.test.ts (created -- config/host-allowlist/retry/
+      validation-before-wire-call unit tests)
+    - src/mcp/yhat-client.integration.test.ts (created -- success/tool-error/
+      empty-result/timeout/auth scenarios against the stub server)
+    - src/mcp/admin-tool-boundary.test.ts (created -- structural boundary test)
+    - src/mcp/__fixtures__/stub-mcp-server.ts (created, 152 lines -- hand-rolled
+      Streamable-HTTP MCP stub used only by the integration test)
+    - docker-compose.yml (modified -- removed wrong "yhat-internal" network,
+      default YHAT_INTERNAL_HOST now mcp.internal.yhat, added explanatory
+      comment)
+    - env.example (modified -- same default, added YHAT_MCP_URL override doc)
+    - openspec/changes/direct-db-integration/tasks.md (modified -- 3.1-3.6
+      marked [x])
+    - openspec/changes/direct-db-integration/state.yaml (this file)
+  tests: 65/65 passing full suite (28 new: 7 entity-query, 2 admin-boundary,
+    13 yhat-client unit, 6 yhat-client integration); npm run typecheck
+    clean; npm run build succeeds (tsc + vite)
+  tdd_mode: strict TDD followed for all three RED+GREEN-tagged tasks
+    (3.3-3.5); confirmed RED by running npm test -- src/mcp against
+    yhat-client.test.ts/yhat-client.integration.test.ts/admin-tool-boundary
+    .test.ts before yhat-client.ts existed (3 failed suites, "Cannot find
+    module ./yhat-client.js"), then implemented to GREEN in one pass, fixed
+    one real bug the tests caught (IPv6 "::1" host-normalization regex
+    incorrectly treated as "port 1"), then fixed two tsc --noEmit errors
+    (SDK's own StreamableHTTPClientTransport does not satisfy its own
+    Transport interface under exactOptionalPropertyTypes -- documented,
+    narrow cast; callTool's overloaded return type resolved via a runtime
+    type-guard instead of an unsafe cast)
+  delivery_blocked: false
+  budget_note: 'final diff feat/domain-rules...feat/ports-mcp-client is
+    1229 changed lines (1202 insertions + 27 deletions across 15 files),
+    above the default 400-line budget and above this session''s 800-line
+    review budget / the native runtime attempt token''s stated
+    max-changed-lines (800, token work_unit_3_ports_mcp). No further clean
+    split identified -- the port interfaces, the client, its error
+    taxonomy, its Zod validation, and the stub server it is tested against
+    are one cohesive, mutually-dependent unit; splitting the stub server or
+    the integration test into a separate PR would leave the prior PR''s
+    RED+GREEN evidence for 3.3-3.4 incomplete. Reported to the user with
+    the exact number before any push/PR action (not assumed carried over
+    from Work Unit 2''s size:exception). Explicitly accepted by the user as
+    size:exception; PR #4 opened at the full 1229-line diff, no further
+    split.'
+  forward_tracked_risks:
+    - cross-repo (non-blocking, not a facodes task) — yhat-mcp-server's
+      authorizeInternalMcpRequest gate hardcodes the expected
+      x-yhat-internal-identity value as the literal constant
+      "yhat-internal" server-side, rather than reading it from a
+      per-deployment secret, while facodes' YHAT_INTERNAL_IDENTITY env var
+      treats it as a real credential. Masked in production because Caddy's
+      header_up x-yhat-internal-identity yhat-internal overwrites whatever
+      facodes sends before it reaches yhat-mcp-server. A future direct
+      container-to-container deployment (bypassing Caddy) would need
+      YHAT_INTERNAL_IDENTITY set to the literal string "yhat-internal" to
+      pass that gate. Worth raising on the yhat-mcp-server side.
+  engram_tooling_gap: mem_search/mem_get_observation/mem_save/mem_context/
+    mem_save_prompt/mem_current_project were not present in this session's
+    tool inventory (Read, Edit, Write, Glob, Grep, Bash only) -- same
+    recurring gap independently noted for apply work unit 2, the Work Unit
+    1 verify session, and the Work Unit 2 verify session. apply-progress
+    could only be persisted to the OpenSpec side of the hybrid artifact
+    store (this state.yaml block plus tasks.md checkboxes), not to Engram
+    under sdd/direct-db-integration/apply-progress/unit-3 as instructed.

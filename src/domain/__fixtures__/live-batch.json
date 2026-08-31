@@ -1,0 +1,34 @@
+{
+  "contractVersion": "2.0.0",
+  "batchNo": 12,
+  "snapshot": "2026-08-28",
+  "codes": [
+    {
+      "id": "c1",
+      "branchRep": "AB01-99",
+      "repName": "Live Rep",
+      "dupcheck": "existente",
+      "fields": {
+        "office": { "value": "New York", "valueId": 55, "status": "resolved", "evidence": "live yhat_query_entities exact match" },
+        "country": { "value": "US", "valueId": 1, "status": "resolved", "evidence": "live yhat_query_entities exact match" },
+        "region": { "value": "US Offshore", "valueId": 3, "status": "resolved", "evidence": "live yhat_query_entities exact match" },
+        "ibd": { "value": "IBD-77", "valueId": 77, "status": "resolved", "evidence": "live yhat_query_entities exact match" },
+        "nscc": { "value": "0330", "status": "resolved", "evidence": "live yhat_query_entities exact match" },
+        "origin": { "value": "UBS", "status": "resolved", "evidence": "declared by source file" },
+        "dealer": { "value": "-Unidentified", "status": "resolved", "evidence": "no confident dealer match" },
+        "agente": { "value": "Muzinich", "status": "resolved", "evidence": "live yhat_query_entities exact match" }
+      },
+      "fa": [
+        {
+          "id": 999,
+          "name": "Live FA",
+          "state": "nuevo",
+          "status": "needs_confirm",
+          "evidence": "shared BranchRep default suggestion",
+          "tipo": "Persona"
+        }
+      ],
+      "alerts": []
+    }
+  ]
+}
