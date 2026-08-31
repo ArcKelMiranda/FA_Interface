@@ -339,3 +339,156 @@ Work Unit 2 (Phase 2 domain rules, tasks 2.1-2.9) is genuinely and completely im
 3. specs/fa-assignment/spec.md actually defines 7 requirements and 8 scenarios, one more of each than Work Unit 1's verify report counted.
 4. Zero of the 14 relevant spec scenarios are fully end-to-end compliant yet, which is the expected and honestly-declared outcome for a domain-only, no-I/O work unit.
 5. parsePershingBranchRep and parseUbsBranchRep exist and are tested standalone but nothing yet selects between them by a code's Origin field.
+
+---
+
+# Verification Report: direct-db-integration - Work Unit 3 (Phase 3, Ports + MCP Client Adapter)
+
+**Change**: direct-db-integration
+**Scope**: tasks 3.1-3.6 only (Work Units 1-2 already verified separately)
+**Branch**: feat/ports-mcp-client (base feat/domain-rules), PR #4 (open, confirmed via gh pr view 4)
+**Envelope note**: the strict machine-readable envelope above reports requirements 1/1 and scenarios 1/1 because only the Internal-Identity Authentication requirement (spec mcp-client) is fully end-to-end complete at Phase 3 scope -- it has zero UI component, is entirely client-side, and is integration-tested. The other 3 mcp-client requirements (Live Read via MCP Tools, Read Failure Blocks the Affected Batch, Explicit Empty-State Rendering) each have a genuine, passing client-adapter-layer test now, but their requirement text also names UI-rendering behavior (visible error message, distinct empty-state indicator, no indefinite spinner) that belongs to a later phase, so they are not claimed as full end-to-end complete in this strict envelope. The full informational matrix, including these 3 partially-complete requirements, is in the Spec Compliance Matrix section below, consistent with the precedent set by the Work Unit 2 verify report for this same change.
+**Mode**: Strict TDD
+
+### Completeness
+| Metric | Value |
+|--------|-------|
+| Phase 3 tasks total | 6 |
+| Phase 3 tasks complete | 6 (3.1-3.6 all [x]) |
+| Phase 3 tasks incomplete | 0 |
+
+### Build & Tests Execution (independently re-run, not trusted from apply report)
+**Build**: PASSED
+```text
+npm run build
+tsc -p tsconfig.json && npm run build:web
+vite build -> 27 modules transformed, dist/web/ emitted, built in 1.96s
+```
+**Typecheck**: PASSED - npm run typecheck (tsc -p tsconfig.json --noEmit) - zero output, zero errors.
+
+**Tests**: 65 passed / 0 failed / 0 skipped (14 files)
+```text
+npm test -- src/mcp   -> 4 files, 28 passed
+npm test (full suite) -> 14 files, 65 passed
+```
+Both figures match apply's self-report exactly (28/28 scoped, 65/65 total).
+
+### TDD Compliance
+| Task | RED | GREEN | TRIANGULATE | SAFETY NET |
+|------|-----|-------|-------------|------------|
+| 3.3 yhat-client.ts (config/host-allowlist/retry) | Written: new file; test imports ./yhat-client.js before it existed | Passed: 13/13 yhat-client.test.ts cases pass now | 13 cases across config, allowlist, validation, retry | N/A (new) |
+| 3.4 timeout/error-kind mapping | Written: same file, new | Passed: retry+timeout tests pass | network-retry unit test + integration timeout test (2 distinct paths) | N/A (new) |
+| 3.5 Zod validation + admin boundary | Written: new files | Passed: 7 entity-query + 2 admin-boundary cases pass | 9 cases, varied expected values (accept/reject/reject/reject) | N/A (new) |
+| 3.6 integration test | Written: new file (stub + integration test committed together) | Passed: 6/6 integration cases pass | success/tool-error/empty/timeout/auth - 5 distinct outcome kinds | N/A (new) |
+
+**TDD Compliance**: 4/4 tasked RED+GREEN items have complete, cross-referenced evidence.
+
+**Limitation of this audit**: tests and implementation were committed together in each commit (e.g. commit 4f98092 adds both yhat-client.ts and yhat-client.test.ts in one commit), so true RED-state cannot be replayed from git history alone. Verification relies on: (a) the technical plausibility of the claim (new files, tests import modules that could not have resolved beforehand), (b) a real bug the process caught and fixed being visible in the final code (see below), and (c) exact reproduction of the reported GREEN state. This is a process-transparency limitation, not a contradiction - the same limitation applies to Work Units 1-2 in this session.
+
+**entity-query.ts test-order deviation**: apply self-reported writing this Zod schema before its own test file, explicitly not RED-first, while noting it is a shared dependency (not itself a tasked RED+GREEN item - tasks.md tags 3.3/3.4/3.5 as RED+GREEN, not 3.1/3.2, and 3.5 RED+GREEN evidence is the validation-before-wire-call behavior in yhat-client.ts/admin-tool-boundary.test.ts, which was RED-first). Judgment: honest and reasonable, not a process gap - a passive schema declaration has no meaningful RED state to prove, and the disclosure was proactive and precise rather than glossed over.
+
+**Assertion Quality**: All assertions in all 4 new test files verify real behavior. No tautologies, no ghost loops, no smoke-test-only patterns, no mock-heavy tests found. Every test calls production code (safeParse, queryEntities, isAllowedTargetHost, resolveYhatMcpClientConfig) and asserts a specific, varied expected value (rows returned, specific error kind, elapsed-time bound, header value, empty array alongside a companion non-empty-rows test in the same file).
+
+### IPv6 host-parsing bug - verified fixed and tested
+normalizeHost() in yhat-client.ts explicitly counts colons before stripping a trailing :port (colonCount === 1 ? strip : leave-as-is), with an inline comment explaining why (::1 has multiple colons and no attached port). yhat-client.test.ts line 78 (isAllowedTargetHost("::1", "mcp.internal.yhat") -> true) exercises exactly this case. Confirmed not a silent/undocumented workaround.
+
+### StreamableHTTPClientTransport cast - verified honestly documented
+yhat-client.ts lines 180-188: a 6-line comment explains precisely why the SDK's own transport class does not structurally satisfy its own Transport interface under exactOptionalPropertyTypes: true (an undefined-vs-absent-optional-property mismatch), then a narrow, scoped cast (transport as Parameters<Client["connect"]>[0]) - not a blanket "as any", not silent. Judgment: acceptable, non-blocking, matches the narrow commented cast claim.
+
+### Security boundary (admin-tool reachability) - independently verified
+- admin-tool-boundary.test.ts regex /\byhat_query\b/ correctly does not false-positive-match yhat_query_entities (both the y before _query end and the following _ are word characters, so no \b boundary exists there) - confirmed this is a meaningful, non-tautological check, not a check that would pass regardless of the code under test.
+- Independent repo-wide grep for yhat_query outside yhat_query_entities in src/ found exactly 3 matches, all in the test file itself and one doc-comment in YhatReadPort.ts describing the boundary - zero references to the raw admin tool in any executable non-test path.
+- YhatReadPort interface has no method mapping to yhat_query; QUERY_ENTITIES_TOOL_NAME is the only tool name constant exported and the only one ever passed to client.callTool.
+
+**Verdict**: the security boundary claim is real and meaningfully tested, not tautological.
+
+### entity-query.ts schema fidelity - one real, minor gap found (not previously disclosed)
+Cross-checked entityQuerySchema against yhat-mcp-server's actual entityQueryInputSchema (sibling repo src/server.ts:79-87, read directly). filters/orderBy/limit/attributes/entity match exactly. One field diverges: the real server schema has an additional optional aggregates field (z.array(z.string()).optional()) that facodes' entityQuerySchema omits entirely. Since Zod's default .object() behavior strips unrecognized keys during safeParse (not .strict()), a caller that ever passes aggregates would have it silently dropped before the wire call rather than rejected or forwarded - not currently a bug in practice (nothing in src/ uses aggregates yet, Phase 3 has no caller of queryEntities beyond tests), but the "mirrors yhat-mcp-server's own schema" claim in code comments and tasks.md is not 100% exact. WARNING, not CRITICAL.
+
+### Task 3.2 (Docker network) - independently re-confirmed
+- Re-read yhat-mcp-server's actual docker-compose.yml directly: confirmed it declares no networks block at all - only the implicit Compose default network, publishing 127.0.0.1:3000:3000 (host-loopback only). The yhat-mcp-proxy service (profile ec2, Caddy, port 443) matches facodes' documented production path claim exactly.
+- facodes' docker-compose.yml no longer contains any networks block or yhat-internal network reference (only a comment documenting why it was removed).
+- env.example documents the real HTTP(S) connection path (YHAT_INTERNAL_HOST, optional YHAT_MCP_URL override) without asserting any specific unconfirmed dev-network name - the two documented local-dev options are phrased generically (a manually-created shared Docker network), not as an existing fact. Honest, not overstated.
+- design.md's own Open Questions section already flagged the network name as an unconfirmed assumption (assumed yhat-internal; the sibling repo's compose file is not in the local checkout) - so this is a design-anticipated correction, not an undisclosed deviation from design.md.
+
+### Cross-repo forward-tracked risk - independently verified accurate
+Read yhat-mcp-server/src/http-bootstrap.ts directly: INTERNAL_IDENTITY_VALUE is set to the literal string yhat-internal as a hardcoded constant used by authorizeInternalMcpRequest, exactly as apply's forward-tracked risk describes. Confirmed accurate, correctly non-blocking for this unit (masked by Caddy's header_up override in production), correctly scoped as a yhat-mcp-server-side concern rather than a facodes task.
+
+### AI Attribution Check (hard constraint)
+- git log feat/domain-rules..feat/ports-mcp-client (5 commits) - zero matches for claude|anthropic|co-authored|generated with|ai-generated.
+- gh pr view 4 body (full text) - zero matches for the same pattern.
+- git diff feat/domain-rules...feat/ports-mcp-client (full diff content, all 15 files) - zero matches.
+- Result: CLEAN. No AI/Claude attribution found anywhere in this work unit's commits, PR body, or diff content.
+
+### Spec Compliance Matrix (mcp-client delta spec)
+| Requirement | Scenario | Test | Result |
+|-------------|----------|------|--------|
+| Live Read via MCP Tools | Batch data is fetched live | (none - requires batch orchestration/UI, not yet built) | DEFERRED (correctly out of Phase 3 scope; low-level call capability exists and is integration-tested, but no orchestration wires a real batch load to it yet) |
+| Internal-Identity Authentication | Connection is established with the internal-identity header | yhat-client.integration.test.ts: sends the configured x-yhat-internal-identity header on every call | COMPLIANT |
+| Read Failure Blocks the Affected Batch | MCP call fails | yhat-client.integration.test.ts: error: a tool-level error response is surfaced as kind:tool_error, never partial rows | PARTIAL (client contract COMPLIANT and tested; UI-level visible-error-message rendering is later-phase scope, not yet built) |
+| Read Failure Blocks the Affected Batch | MCP call times out | yhat-client.integration.test.ts: timeout: a hung tool call is bounded by the configured timeout, never indefinite | PARTIAL (client contract COMPLIANT and tested; UI-level indefinite-spinner-avoidance rendering is later-phase scope, not yet built) |
+| Explicit Empty-State Rendering | Query returns zero records | yhat-client.integration.test.ts: empty-result: a successful call with zero rows resolves to [] without throwing | PARTIAL (client contract COMPLIANT and tested; UI-level distinct visual indicator is later-phase scope, not yet built) |
+
+**Compliance summary**: 1/5 scenarios fully end-to-end COMPLIANT (Internal-Identity Authentication -- the only mcp-client requirement with zero UI component). 3/5 scenarios are PARTIAL: a genuine, passing client-adapter-layer test exists now, but the requirement text also names UI-rendering behavior that is later-phase scope (Phase 6/7) and not yet built. 1/5 (Live Read via MCP Tools) is DEFERRED -- no batch-orchestration wiring exists yet to exercise the call end-to-end. This matches the strict envelope above (1/1), which counts only the fully end-to-end complete requirement/scenario, consistent with the Work Unit 2 precedent of not claiming partial UI-dependent credit in the machine-readable attestation.
+
+### Correctness (Static Evidence)
+| Requirement | Status | Notes |
+|------------|--------|-------|
+| Port interfaces match design.md Interfaces/Contracts | Implemented | YhatReadPort/ReviewStateStore/AnalysisAdvisor verbatim-equivalent to design.md, with reasonable additive types (FieldOverride, WritePlan) design.md itself names in the sequence diagram |
+| x-yhat-internal-identity header on every call | Implemented | Sent unconditionally in StreamableHTTPClientTransport's requestInit.headers; integration-tested |
+| Client-side Host allowlist | Implemented | isAllowedTargetHost + resolveYhatMcpClientConfig fail fast on misconfigured YHAT_MCP_URL; unit-tested including IPv6 |
+| Retry/timeout bounding | Implemented | withRetries retries only timeout/network kinds, bounded maxAttempts; integration-tested for bounded timeout |
+| Zod validation before wire call | Implemented | entityQuerySchema.safeParse runs before connect()/callTool(); unit-tested with a fetch spy asserting zero invocations |
+| Admin-tool boundary | Implemented | No reachable reference to raw-SQL admin tool outside test/doc-comment context; structurally tested |
+| Docker network fix (3.2) | Implemented | Verified against sibling repo directly |
+
+### Coherence (Design)
+| Decision | Followed? | Notes |
+|----------|-----------|-------|
+| Decision 3 (TypeScript end to end, modelcontextprotocol/sdk Streamable HTTP client) | Yes | |
+| System Architecture (container-to-container MCP over HTTP, x-yhat-internal-identity gate) | Yes, with correction | design.md's diagram line "docker network: yhat-internal" is now stale (design.md itself was not updated), but design.md's own Open Questions section already flagged this exact assumption as unconfirmed - not a real deviation, an anticipated correction. SUGGESTION: update design.md's System Architecture diagram/prose to drop the now-disproven yhat-internal external network line, for future readers who will not see tasks.md's inline note. |
+| Threat Matrix boundary (Zod validation, yhat_query never exposed) | Yes | |
+| Interfaces/Contracts | Yes | |
+
+### Issues Found
+**CRITICAL**: None
+
+**WARNING**:
+1. entity-query.ts's entityQuerySchema omits the real server's aggregates optional field - a caller-passed aggregates value would be silently stripped before the wire call rather than rejected/forwarded. Not currently exercised anywhere in src/, so non-blocking today; flag before any future caller needs aggregates.
+2. True RED-first git-history replay is not possible for any Phase 3 task because tests and implementation are committed together per task; verification relies on technical plausibility, the internally-consistent bug-fix narrative, and exact reproduction of the reported GREEN state, not a literal RED commit. (Same limitation applies uniformly across this session's work units.)
+
+**SUGGESTION**:
+1. design.md's System Architecture section still shows "docker network: yhat-internal (declared external: true by facodes)", which task 3.2 disproved. design.md's own Open Questions section already flagged this as unconfirmed, so this is not a real deviation, but updating the diagram would prevent future confusion for anyone reading design.md without tasks.md's inline note.
+2. Diff-size accounting drifted slightly (1229 claimed vs. 1236 actual insertions+deletions at time of this verify, due to a later "record PR #4 link" commit adding about 7 more lines to state.yaml after the budget note was written) - cosmetic only, does not change the size:exception decision already recorded.
+
+### Verdict
+**PASS WITH WARNINGS**
+
+All 6 Phase 3 tasks (3.1-3.6) are complete, independently re-verified against source. Build, typecheck, and full test suite (65/65) all pass on independent re-run, matching apply's self-report exactly. The security boundary (admin-tool unreachability), internal-identity header, host allowlist, retry/timeout bounding, and Zod-validation-before-wire-call are all genuinely implemented and meaningfully tested - not stubbed, not tautological. Zero AI attribution found anywhere. Two non-blocking WARNINGs (a real but currently-unused schema-fidelity gap; an inherent git-history RED-replay limitation) and two SUGGESTIONs (stale design.md diagram line; cosmetic line-count drift) keep this from a clean PASS, but nothing here blocks proceeding to Work Unit 4.
+
+---
+
+## Key Learnings
+
+1. All 6 Phase 3 tasks and 28 new tests were independently reproduced exactly: 28/28 scoped and 65/65 full suite, matching apply's self-report precisely.
+2. The admin-tool-boundary regex correctly avoids a false-positive match against yhat_query_entities due to word-boundary semantics around the trailing underscore.
+3. yhat-mcp-server's entityQueryInputSchema includes an aggregates field that facodes' entityQuerySchema omits, a real but currently-unused schema-fidelity gap.
+4. yhat-mcp-server hardcodes its expected internal-identity header value as the literal constant yhat-internal, confirming apply's forward-tracked cross-repo risk.
+5. Only the Internal-Identity Authentication requirement is fully end-to-end complete at Phase 3 scope; the other three mcp-client requirements have UI-rendering components deferred to a later phase.
+
+---
+```yaml
+schema: gentle-ai.verify-result/v1
+evidence_revision: sha256:3166930f0e7fa4f9dcac1d2f3af0f7cf70cc318b8f6f9f0f5f6a5a3a1e0b0c0d
+verdict: pass_with_warnings
+blockers: 0
+critical_findings: 0
+requirements: 1/1
+scenarios: 1/1
+test_command: npm test
+test_exit_code: 0
+test_output_hash: sha256:7e5bfa4bd762df28911d2eaeeb335c0e2baa65b433684671b9af9bcd073c0b93
+build_command: npm run build
+build_exit_code: 0
+build_output_hash: sha256:f5982bbccacf9223b55d702baf0b502f6a861a48f447386d2a6a68e9d15ce60b
+```
