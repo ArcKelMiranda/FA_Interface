@@ -3,11 +3,17 @@
  * click, `role="dialog" aria-modal="true"`, Escape closes without losing
  * table state, shows current value/evidence/precedent-codes/alternatives,
  * and a catalog search control for non-FA fields.
+ *
+ * Issue #21 (spec fa-assignment — Generic Unidentified Placeholder): the
+ * header renders the `GENERIC_PLACEHOLDER_INDICATOR` when
+ * `detail.headerIndicator` carries it, and renders only the field label
+ * otherwise.
  */
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { GENERIC_PLACEHOLDER_INDICATOR } from "../status-meta.js";
 import { FieldDrawer, type DrawerReference, type NonFaFieldDetail } from "./FieldDrawer.js";
 
 function nonFaField(): NonFaFieldDetail {
@@ -212,6 +218,42 @@ describe("FieldDrawer", () => {
       );
 
       expect(screen.queryByRole("region", { name: /códigos precedentes/i })).not.toBeInTheDocument();
+    });
+  });
+
+  describe("spec fa-assignment — Generic Unidentified Placeholder (issue #21)", () => {
+    it("renders the generic-placeholder indicator on the field header when detail.headerIndicator carries it", () => {
+      render(
+        <FieldDrawer
+          open
+          detail={{ ...nonFaField(), headerIndicator: GENERIC_PLACEHOLDER_INDICATOR }}
+          onClose={() => {}}
+          onAcceptAlternative={() => {}}
+          onCatalogSelect={() => {}}
+        />,
+      );
+
+      const dialog = screen.getByRole("dialog");
+      const indicator = within(dialog).getByRole("note", { name: /genérico/i });
+      expect(indicator).toBeInTheDocument();
+      expect(indicator).toHaveAttribute("data-indicator-kind", "generic-placeholder");
+      // Distinct texture from the four status textures so it cannot be
+      // mistaken for a field status badge.
+      expect(indicator).toHaveAttribute("data-texture", "cross-hatch");
+    });
+
+    it("does not render the generic-placeholder indicator when detail.headerIndicator is absent", () => {
+      render(
+        <FieldDrawer
+          open
+          detail={nonFaField()}
+          onClose={() => {}}
+          onAcceptAlternative={() => {}}
+          onCatalogSelect={() => {}}
+        />,
+      );
+
+      expect(screen.queryByRole("note", { name: /genérico/i })).not.toBeInTheDocument();
     });
   });
 });

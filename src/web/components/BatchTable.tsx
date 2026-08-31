@@ -9,9 +9,16 @@
 import type { CSSProperties } from "react";
 
 import type { CodeEntry } from "../../domain/types.js";
-import { FIELD_LABELS, FIELD_ORDER, worstStatus, type FieldStatus } from "../status-meta.js";
+import {
+  FIELD_LABELS,
+  FIELD_ORDER,
+  type FieldStatus,
+  type IndicatorMeta,
+  worstStatus,
+} from "../status-meta.js";
 import type { Density } from "./Filters.js";
 import { Fingerprint, type FingerprintStatuses } from "./Fingerprint.js";
+import { Indicator } from "./Indicator.js";
 import { StatusBadge } from "./StatusBadge.js";
 
 export interface BatchTableProps {
@@ -22,6 +29,13 @@ export interface BatchTableProps {
   selectedCodeId: string | null;
   onSelectRow: (codeId: string) => void;
   onSelectField: (codeId: string, field: string) => void;
+  /**
+   * Per-code non-status indicators to surface on the FA cell. Built by
+   * `App` from the underlying domain signals (e.g. `isFalseCompanyMatch`
+   * for the False-Company Detection Alert, issue #21). Codes absent from
+   * this map render the FA cell without any indicator.
+   */
+  faIndicatorsByCodeId?: Record<string, IndicatorMeta> | undefined;
 }
 
 function faStatus(code: CodeEntry): FieldStatus {
@@ -48,6 +62,7 @@ export function BatchTable({
   selectedCodeId,
   onSelectRow,
   onSelectField,
+  faIndicatorsByCodeId,
 }: BatchTableProps) {
   const visibleCodes = codes.filter((code) => {
     const overall = rowStatus(code);
@@ -130,7 +145,19 @@ export function BatchTable({
                     onSelectField(code.id, "fa");
                   }}
                 >
-                  {faLabel(code)}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-start",
+                      gap: "var(--space-1)",
+                    }}
+                  >
+                    <span>{faLabel(code)}</span>
+                    {faIndicatorsByCodeId?.[code.id] && (
+                      <Indicator meta={faIndicatorsByCodeId[code.id]!} />
+                    )}
+                  </div>
                 </td>
                 {FIELD_ORDER.map((f) => (
                   <td
