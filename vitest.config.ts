@@ -1,14 +1,30 @@
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
-// Server/domain/store/api code (Phases 2-5) runs under "node". Phase 6 adds
-// a `jsdom` Vitest project for src/web/**/*.test.tsx at that point — kept
-// out of this config for now since Vitest 3.2 deprecated
-// `environmentMatchGlobs` in favor of `test.projects`, and there are no web
-// tests to configure yet.
+// Two Vitest projects (Vitest 3.2 replaced `environmentMatchGlobs` with
+// `test.projects`): server/domain/store/api code (Phases 2-5) runs under
+// "node"; the React SPA (Phase 6, src/web/**/*.test.tsx) runs under "jsdom"
+// with the React plugin and Testing Library's jest-dom matchers.
 export default defineConfig({
   test: {
-    environment: "node",
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     reporters: "default",
+    projects: [
+      {
+        test: {
+          name: "server",
+          environment: "node",
+          include: ["src/**/*.test.ts"],
+        },
+      },
+      {
+        plugins: [react()],
+        test: {
+          name: "web",
+          environment: "jsdom",
+          include: ["src/web/**/*.test.tsx"],
+          setupFiles: ["src/web/test/setup.ts"],
+        },
+      },
+    ],
   },
 });
