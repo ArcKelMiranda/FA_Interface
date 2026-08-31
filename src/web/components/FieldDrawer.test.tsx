@@ -1,14 +1,14 @@
 /**
  * Task 6.6 (spec review-ui — Per-Field Drawer): opens on cell/fingerprint
  * click, `role="dialog" aria-modal="true"`, Escape closes without losing
- * table state, shows current value/evidence/alternatives, and a catalog
- * search control for non-FA fields.
+ * table state, shows current value/evidence/precedent-codes/alternatives,
+ * and a catalog search control for non-FA fields.
  */
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { FieldDrawer, type NonFaFieldDetail } from "./FieldDrawer.js";
+import { FieldDrawer, type DrawerReference, type NonFaFieldDetail } from "./FieldDrawer.js";
 
 function nonFaField(): NonFaFieldDetail {
   return {
@@ -22,6 +22,19 @@ function nonFaField(): NonFaFieldDetail {
       { label: "New York" },
       { label: "Newark" },
     ],
+  };
+}
+
+function sampleReference(): DrawerReference {
+  return {
+    title: "Tabla de sucursales previas",
+    description: "Coincidencias encontradas en lotes anteriores.",
+    columns: ["branchRep", "repName", "office"],
+    rows: [
+      { branchRep: "1234/5678", repName: "Doe, J.", office: "NY" },
+      { branchRep: "1234/5679", repName: "Roe, R.", office: "NY" },
+    ],
+    footnote: "Fuente: lote 42",
   };
 }
 
@@ -140,5 +153,65 @@ describe("FieldDrawer", () => {
     await user.click(screen.getByRole("button", { name: /restaurar sugerencia/i }));
 
     expect(onRestore).toHaveBeenCalledTimes(1);
+  });
+
+  describe("precedent codes (CodeEntry.references)", () => {
+    it("renders the references section with a table, title, description, and footnote when references are present", () => {
+      const ref = sampleReference();
+      render(
+        <FieldDrawer
+          open
+          detail={{ ...nonFaField(), references: [ref] }}
+          onClose={() => {}}
+          onAcceptAlternative={() => {}}
+          onCatalogSelect={() => {}}
+        />,
+      );
+
+      const section = screen.getByRole("region", { name: /códigos precedentes/i });
+      expect(section).toBeInTheDocument();
+      expect(within(section).getByText(ref.title)).toBeInTheDocument();
+      expect(within(section).getByText(ref.description)).toBeInTheDocument();
+      expect(within(section).getByText(ref.footnote ?? "")).toBeInTheDocument();
+
+      for (const col of ref.columns) {
+        expect(within(section).getByRole("columnheader", { name: col })).toBeInTheDocument();
+      }
+      // Header row + 2 data rows
+      const rows = within(section).getAllByRole("row");
+      expect(rows).toHaveLength(1 + ref.rows.length);
+      // Spot-check a unique cell value (the duplicated "NY" would trip
+      // getByText, so use a branchRep value that appears only once).
+      expect(within(section).getByText("1234/5678")).toBeInTheDocument();
+      expect(within(section).getByText("Roe, R.")).toBeInTheDocument();
+    });
+
+    it("does not render the precedent-codes section when references is omitted", () => {
+      render(
+        <FieldDrawer
+          open
+          detail={nonFaField()}
+          onClose={() => {}}
+          onAcceptAlternative={() => {}}
+          onCatalogSelect={() => {}}
+        />,
+      );
+
+      expect(screen.queryByRole("region", { name: /códigos precedentes/i })).not.toBeInTheDocument();
+    });
+
+    it("does not render the precedent-codes section when references is an empty array", () => {
+      render(
+        <FieldDrawer
+          open
+          detail={{ ...nonFaField(), references: [] }}
+          onClose={() => {}}
+          onAcceptAlternative={() => {}}
+          onCatalogSelect={() => {}}
+        />,
+      );
+
+      expect(screen.queryByRole("region", { name: /códigos precedentes/i })).not.toBeInTheDocument();
+    });
   });
 });
