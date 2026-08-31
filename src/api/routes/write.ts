@@ -152,7 +152,7 @@ export function registerWriteRoutes(app: FastifyInstance, deps: WriteRouteDeps):
 function isFullyResolved(batch: BatchAnalysis): boolean {
   return batch.codes.every((code) => {
     const fieldsResolved = Object.values(code.fields).every((field) => field.status === "resolved");
-    const faResolved = code.fa.every((fa) => fa.status === "resolved");
+    const faResolved = code.fa.length > 0 && code.fa.every((fa) => fa.status === "resolved");
     return fieldsResolved && faResolved;
   });
 }

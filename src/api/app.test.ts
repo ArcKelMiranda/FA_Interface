@@ -26,7 +26,7 @@ function makeResolvedBatch(): BatchAnalysis {
           dealer: { value: "D1", status: "resolved" },
           agente: { value: "A1", status: "resolved" },
         },
-        fa: [],
+        fa: [{ id: 1, name: "Some Fa", state: "existente", status: "resolved" }],
       },
     ],
   };
