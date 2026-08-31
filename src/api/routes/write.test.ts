@@ -125,6 +125,19 @@ describe("POST /api/batches/:batchId/write-plan (spec write-confirmation — Ful
     expect(response.json()).toMatchObject({ error: "batch_not_fully_resolved" });
     expect(store.savePlan).not.toHaveBeenCalled();
   });
+
+  it("returns 409 when a code has zero FA candidates, not vacuously resolved", async () => {
+    const batch = makeResolvedBatch();
+    batch.codes[0]!.fa = [];
+    const store = makeStore({ loadBatch: vi.fn(async () => batch) });
+    const app = buildApp({ store, writeToolsEnabled: false });
+
+    const response = await app.inject({ method: "POST", url: "/api/batches/42/write-plan" });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({ error: "batch_not_fully_resolved" });
+    expect(store.savePlan).not.toHaveBeenCalled();
+  });
 });
 
 describe("POST /api/batches/:batchId/write-commit (spec write-confirmation — Two-Step Explicit Confirmation)", () => {
