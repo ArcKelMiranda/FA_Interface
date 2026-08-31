@@ -29,3 +29,20 @@ export class PlanConfirmationError extends Error {
     this.kind = kind;
   }
 }
+
+/**
+ * Thrown by `SqliteReviewStateStore.putOverride` when `field` is not one of
+ * the known overridable fields (`src/store/sqlite/index.ts`'s
+ * `OVERRIDABLE_FIELDS`). Without this check an unknown field name would be
+ * written to the `overrides` table and then silently dropped by
+ * `applyOverrides` on the next `loadBatch`, with no error surfaced anywhere.
+ */
+export class InvalidOverrideFieldError extends Error {
+  readonly field: string;
+
+  constructor(field: string) {
+    super(`"${field}" is not a known overridable field`);
+    this.name = "InvalidOverrideFieldError";
+    this.field = field;
+  }
+}

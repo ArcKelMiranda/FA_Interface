@@ -15,6 +15,12 @@
  * the SQLite level, but this module adds nothing on top of it. If a future
  * requirement needs multi-user conflict resolution, that is a new
  * capability on top of this store, not a change to its existing contract.
+ *
+ * This module's tests (`index.test.ts`) deliberately use a real temp-file
+ * database rather than SQLite's `:memory:` mode, because the durability
+ * test for `putOverride` proves the write completed via a second,
+ * independent connection to the same file — a check `:memory:` cannot
+ * express, since each connection would get its own private database.
  */
 
 import Database, { type Database as DatabaseType } from "better-sqlite3";
@@ -25,10 +31,18 @@ import type {
   ReviewStateStore,
   WritePlan,
 } from "../../ports/ReviewStateStore.js";
-import { PLAN_CONFIRMATION_ERROR_KIND, PlanConfirmationError } from "./errors.js";
+import {
+  InvalidOverrideFieldError,
+  PLAN_CONFIRMATION_ERROR_KIND,
+  PlanConfirmationError,
+} from "./errors.js";
 import { runMigrations } from "./migrate.js";
 
-export { PLAN_CONFIRMATION_ERROR_KIND, PlanConfirmationError } from "./errors.js";
+export {
+  InvalidOverrideFieldError,
+  PLAN_CONFIRMATION_ERROR_KIND,
+  PlanConfirmationError,
+} from "./errors.js";
 
 const OVERRIDABLE_FIELDS = [
   "office",
@@ -110,6 +124,10 @@ export class SqliteReviewStateStore implements ReviewStateStore {
     field: string,
     override: FieldOverride,
   ): Promise<void> {
+    if (!isOverridableField(field)) {
+      throw new InvalidOverrideFieldError(field);
+    }
+
     this.db
       .prepare(
         `INSERT INTO overrides (batch_id, code_id, field, value, value_id, overridden_at)

@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { BatchAnalysis } from "../../domain/types.js";
 import type { FieldOverride, WritePlan } from "../../ports/ReviewStateStore.js";
-import { PLAN_CONFIRMATION_ERROR_KIND, PlanConfirmationError } from "./errors.js";
+import { InvalidOverrideFieldError, PLAN_CONFIRMATION_ERROR_KIND, PlanConfirmationError } from "./errors.js";
 import { SqliteReviewStateStore } from "./index.js";
 
 function makeBatch(overrides: Partial<BatchAnalysis> = {}): BatchAnalysis {
@@ -161,6 +161,21 @@ describe("SqliteReviewStateStore.putOverride (spec persistence — Durable Overr
 
     const loaded = await store.loadBatch(String(batch.batchNo));
     expect(loaded?.codes[0]?.fields.office.value).toBe("Second Override");
+    store.close();
+  });
+
+  it("rejects an unknown field name instead of silently persisting a row that load will drop", async () => {
+    const store = new SqliteReviewStateStore(dbPath);
+    const batch = makeBatch();
+    await store.saveBatch(batch);
+
+    await expect(
+      store.putOverride(String(batch.batchNo), "code-1", "not_a_real_field", {
+        value: "whatever",
+        overriddenAt: "2026-08-31T01:00:00.000Z",
+      }),
+    ).rejects.toBeInstanceOf(InvalidOverrideFieldError);
+
     store.close();
   });
 });
