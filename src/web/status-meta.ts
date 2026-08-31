@@ -75,3 +75,20 @@ export const FIELD_LABELS: Record<FieldName, string> = {
   dealer: "Dealer",
   agente: "Agente",
 };
+
+/** Most-severe-first order, used to derive one overall status from many. */
+const SEVERITY_ORDER: FieldStatus[] = ["needs_input", "needs_confirm", "no_data", "resolved"];
+
+/** Reduces multiple statuses to the single most-severe one (e.g. a row's
+ * overall status from its 8 fields + FA, or an FA list's combined status). */
+export function worstStatus(statuses: FieldStatus[]): FieldStatus {
+  if (statuses.length === 0) {
+    return "no_data";
+  }
+  for (const candidate of SEVERITY_ORDER) {
+    if (statuses.includes(candidate)) {
+      return candidate;
+    }
+  }
+  return "no_data";
+}
