@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "dev:web": "vite",
+    "start": "node dist/index.js",
     "build": "tsc -p tsconfig.json && npm run build:web",
     "build:web": "vite build",
     "test": "vitest run",
