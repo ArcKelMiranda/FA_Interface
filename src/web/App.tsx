@@ -6,9 +6,18 @@
  * Rendering), the fingerprint -> drawer -> field-override flow (tasks
  * 6.5-6.8), and the "Preparar alta" -> plan-review hand-off (design.md
  * Write-Confirmation Gate sequence).
+ *
+ * Spec fa-assignment (issue #21): per-code `isFalseCompanyMatch`
+ * (src/domain/false-company.ts) is projected into a
+ * `faIndicatorsByCodeId` map the `BatchTable` renders on the FA cell;
+ * per-field `isUnidentifiedPlaceholder` (src/domain/unidentified.ts) is
+ * projected into a `headerIndicator` on the `NonFaFieldDetail` the
+ * `FieldDrawer` renders on the field header.
  */
 import { useState } from "react";
 
+import { isFalseCompanyMatch } from "../domain/false-company.js";
+import { isUnidentifiedPlaceholder } from "../domain/unidentified.js";
 import type { BatchAnalysis, CodeEntry } from "../domain/types.js";
 import type { WritePlan } from "../ports/ReviewStateStore.js";
 import { ApiError, fetchBatch, postWritePlan, putFieldOverride } from "./api/client.js";
@@ -24,7 +33,15 @@ import { Header } from "./components/Header.js";
 import { KpiRow } from "./components/KpiRow.js";
 import { PageTitle } from "./components/PageTitle.js";
 import { PlanReview } from "./components/PlanReview.js";
-import { FIELD_LABELS, FIELD_ORDER, type FieldName, type FieldStatus } from "./status-meta.js";
+import {
+  FALSE_COMPANY_INDICATOR,
+  FIELD_LABELS,
+  FIELD_ORDER,
+  GENERIC_PLACEHOLDER_INDICATOR,
+  type FieldName,
+  type FieldStatus,
+  type IndicatorMeta,
+} from "./status-meta.js";
 import "./styles/tokens.css";
 
 type LoadState = "idle" | "loading" | "loaded" | "error";
@@ -46,6 +63,24 @@ function buildFaDrawerDetail(code: CodeEntry): FaFieldDetail {
     alternatives: primaryFa?.alternatives ?? [],
     discarded: code.faDiscarded ?? [],
   };
+}
+
+/**
+ * Spec `fa-assignment` — False-Company Detection Alert (issue #21).
+ * Returns the `FALSE_COMPANY_INDICATOR` meta for codes whose joined FA
+ * names match `isFalseCompanyMatch`; absent for codes with normal names.
+ * The `BatchTable` renders this on the FA cell, not inside the drawer.
+ */
+function buildFaIndicatorsByCodeId(batch: BatchAnalysis): Record<string, IndicatorMeta> {
+  const result: Record<string, IndicatorMeta> = {};
+  for (const code of batch.codes) {
+    if (code.fa.length === 0) continue;
+    const faNames = code.fa.map((fa) => fa.name).join(", ");
+    if (isFalseCompanyMatch(faNames)) {
+      result[code.id] = FALSE_COMPANY_INDICATOR;
+    }
+  }
+  return result;
 }
 
 export function App() {
@@ -109,6 +144,9 @@ export function App() {
         value: fieldValue.value,
         status: fieldValue.status,
         isOverride: overriddenFields.has(`${codeId}:${field}`),
+        ...(isUnidentifiedPlaceholder(fieldValue.value)
+          ? { headerIndicator: GENERIC_PLACEHOLDER_INDICATOR }
+          : {}),
         ...(fieldValue.evidence !== undefined ? { evidence: fieldValue.evidence } : {}),
         ...(fieldValue.alternatives !== undefined ? { alternatives: fieldValue.alternatives } : {}),
         ...(code.references !== undefined ? { references: code.references } : {}),
@@ -387,6 +425,7 @@ export function App() {
                     selectedCodeId={selectedCodeId}
                     onSelectRow={setSelectedCodeId}
                     onSelectField={openDrawer}
+                    faIndicatorsByCodeId={buildFaIndicatorsByCodeId(batch)}
                   />
                 )}
                 <div style={{ textAlign: "center", margin: "var(--space-4) 0" }}>

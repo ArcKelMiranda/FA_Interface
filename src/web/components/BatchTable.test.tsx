@@ -3,12 +3,18 @@
  * (filter wiring): one row per code with BranchRep, Rep Name, FA(s), and
  * the eight resolution fields, filtered by status/onlyPending, selectable,
  * and opening the drawer via cell click.
+ *
+ * Issue #21 (spec fa-assignment — False-Company Detection Alert): the FA
+ * cell renders the `FALSE_COMPANY_INDICATOR` when `faIndicatorsByCodeId`
+ * carries the meta for that code, and renders the plain FA label
+ * otherwise.
  */
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { CodeEntry } from "../../domain/types.js";
+import { FALSE_COMPANY_INDICATOR } from "../status-meta.js";
 import { BatchTable } from "./BatchTable.js";
 
 function field(value: string, status: "resolved" | "needs_confirm" | "needs_input" | "no_data") {
@@ -154,5 +160,94 @@ describe("BatchTable", () => {
     row = screen.getByRole("row", { name: /0001-0002/ });
     expect(row).toHaveAttribute("aria-selected", "false");
     expect(row).toHaveClass("batch-row--compact");
+  });
+
+  describe("spec fa-assignment — False-Company Detection Alert (issue #21)", () => {
+    it("renders the false-company indicator on the FA cell when faIndicatorsByCodeId carries it for that code", () => {
+      render(
+        <BatchTable
+          codes={[makeCode()]}
+          statusFilter={null}
+          onlyPending={false}
+          density="comfortable"
+          selectedCodeId={null}
+          onSelectRow={() => {}}
+          onSelectField={() => {}}
+          faIndicatorsByCodeId={{ "code-1": FALSE_COMPANY_INDICATOR }}
+        />,
+      );
+
+      const row = screen.getByRole("row", { name: /0001-0002/ });
+      const indicator = within(row).getByRole("note", { name: /empresa falsa/i });
+      expect(indicator).toBeInTheDocument();
+      expect(indicator).toHaveAttribute("data-indicator-kind", "false-company-alert");
+      // Distinct texture from the four status textures so it cannot be
+      // mistaken for a field status badge.
+      expect(indicator).toHaveAttribute("data-texture", "double-diagonal-stripes");
+    });
+
+    it("does not render the false-company indicator when faIndicatorsByCodeId is absent or empty", () => {
+      const { rerender } = render(
+        <BatchTable
+          codes={[makeCode()]}
+          statusFilter={null}
+          onlyPending={false}
+          density="comfortable"
+          selectedCodeId={null}
+          onSelectRow={() => {}}
+          onSelectField={() => {}}
+        />,
+      );
+
+      expect(screen.queryByRole("note", { name: /empresa falsa/i })).not.toBeInTheDocument();
+
+      rerender(
+        <BatchTable
+          codes={[makeCode()]}
+          statusFilter={null}
+          onlyPending={false}
+          density="comfortable"
+          selectedCodeId={null}
+          onSelectRow={() => {}}
+          onSelectField={() => {}}
+          faIndicatorsByCodeId={{}}
+        />,
+      );
+
+      expect(screen.queryByRole("note", { name: /empresa falsa/i })).not.toBeInTheDocument();
+    });
+
+    it("only renders the indicator for codes present in faIndicatorsByCodeId, not for every row", () => {
+      const matched = makeCode({ id: "matched", branchRep: "0001-0002" });
+      const untouched = makeCode({
+        id: "untouched",
+        branchRep: "0003-0004",
+        fa: [{ id: 2, name: "Vontobel", state: "existente", status: "resolved" }],
+      });
+
+      render(
+        <BatchTable
+          codes={[matched, untouched]}
+          statusFilter={null}
+          onlyPending={false}
+          density="comfortable"
+          selectedCodeId={null}
+          onSelectRow={() => {}}
+          onSelectField={() => {}}
+          faIndicatorsByCodeId={{ matched: FALSE_COMPANY_INDICATOR }}
+        />,
+      );
+
+      expect(
+        within(screen.getByRole("row", { name: /0001-0002/ })).getByRole("note", {
+          name: /empresa falsa/i,
+        }),
+      ).toBeInTheDocument();
+      expect(
+        within(screen.getByRole("row", { name: /0003-0004/ })).queryByRole("note", {
+          name: /empresa falsa/i,
+        }),
+      ).not.toBeInTheDocument();
+    });
   });
 });

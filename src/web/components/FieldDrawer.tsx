@@ -5,16 +5,25 @@
  * Architecture — Edit drawer), shows the field's current value, evidence,
  * precedent codes/alternatives, and a catalog search control for non-FA
  * fields. For the `fa` field it embeds `FaEditor` (task 6.7) instead.
+ *
+ * SPEC fa-assignment — Generic Unidentified Placeholder (issue #21):
+ * fields resolved via `resolveToUnidentifiedPlaceholder` (src/domain/
+ * unidentified.ts) carry `isGenericPlaceholder: true` on the
+ * `NonFaFieldDetail` passed in here. The header renders the
+ * `GENERIC_PLACEHOLDER_INDICATOR` next to the label so the reviewer can
+ * see at a glance that the value is the generic `-Unidentified`
+ * placeholder, not a real match.
  */
 import { useEffect, useState } from "react";
 
-import type { FieldStatus } from "../status-meta.js";
+import type { FieldStatus, IndicatorMeta } from "../status-meta.js";
 import {
   FaEditor,
   type FaAlternativeOption,
   type FaDiscardedOption,
   type FaTipo,
 } from "./FaEditor.js";
+import { Indicator } from "./Indicator.js";
 import { OverrideMarker } from "./OverrideMarker.js";
 import { StatusBadge } from "./StatusBadge.js";
 
@@ -45,6 +54,12 @@ export interface NonFaFieldDetail {
   alternatives?: DrawerAlternative[] | undefined;
   isOverride?: boolean | undefined;
   references?: DrawerReference[] | undefined;
+  /**
+   * Indicator meta to surface on the field header — currently only
+   * `GENERIC_PLACEHOLDER_INDICATOR` (issue #21). Absent on real matches,
+   * so the header renders only the field label.
+   */
+  headerIndicator?: IndicatorMeta | undefined;
 }
 
 export interface FaFieldDetail {
@@ -126,7 +141,12 @@ export function FieldDrawer({
       }}
     >
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2 style={{ font: "var(--font-heading-3)" }}>{detail.label}</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-1)", flexWrap: "wrap" }}>
+          <h2 style={{ font: "var(--font-heading-3)", margin: 0 }}>{detail.label}</h2>
+          {detail.kind === "field" && detail.headerIndicator && (
+            <Indicator meta={detail.headerIndicator} />
+          )}
+        </div>
         <button type="button" onClick={onClose} aria-label="Cerrar">
           ×
         </button>

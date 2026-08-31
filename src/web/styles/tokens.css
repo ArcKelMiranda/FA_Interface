@@ -56,6 +56,12 @@
   --status-no-data-bg: #e5e7eb;
   --status-no-data-fg: #667085;
 
+  /* Indicator palette (spec fa-assignment — non-status state markers) */
+  --status-alert-bg: #fee2e2;
+  --status-alert-fg: #991b1b;
+  --status-generic-bg: #f3f4f6;
+  --status-generic-fg: #475467;
+
   /* Typography */
   --font-family:
     "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
