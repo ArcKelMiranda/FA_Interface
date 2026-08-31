@@ -14,11 +14,13 @@ dependency_graph:
   specs: done
   design: done
   tasks: done
-  apply: work_unit_3_of_8_done
-  verify: work_unit_1_PASS, work_unit_2_PASS_WITH_WARNINGS, work_unit_3_PASS_WITH_WARNINGS
+  apply: work_unit_4_of_8_done
+  verify: work_unit_1_PASS, work_unit_2_PASS_WITH_WARNINGS, work_unit_3_PASS_WITH_WARNINGS,
+    work_unit_4_PASS_WITH_WARNINGS
   archive: pending
-next_recommended: sdd-apply for work unit 4 (Phase 4, SQLite store), branching
-  from feat/ports-mcp-client once PR #4 merges
+next_recommended: sdd-apply for work unit 5 (Phase 5, API layer), branching from
+  feat/sqlite-store once PR #5 merges (work unit 4 verify complete,
+  PASS_WITH_WARNINGS, 3 warnings, 0 critical)
 remote_repo: https://github.com/ArcKelMiranda/FA_Interface.git
 git_local: initialized, remote "origin" added, no commits yet
 chain_strategy: feature-branch-chain
@@ -275,3 +277,138 @@ work_unit_3_result:
     could only be persisted to the OpenSpec side of the hybrid artifact
     store (this state.yaml block plus tasks.md checkboxes), not to Engram
     under sdd/direct-db-integration/apply-progress/unit-3 as instructed.
+work_unit_4_result:
+  status: done
+  scope: Phase 4 SQLite store, tasks 4.1-4.7, all 7 marked [x] in tasks.md
+    with inline NOTE/RESOLVED annotations
+  branch: feat/sqlite-store (pushed to origin, tracking origin/feat/sqlite-store),
+    branched from origin/feat/domain-rules at 1a521a7e4656e830f705a84f5895c
+    61193c1b4bf (the PR #4 merge commit; local feat/domain-rules was stale
+    behind origin at session start -- diffed/branched against origin instead)
+  pr_unit_4: https://github.com/ArcKelMiranda/FA_Interface/pull/5
+    (feat/sqlite-store to feat/domain-rules)
+  files_changed:
+    - src/store/sqlite/index.ts (created, 223 lines -- SqliteReviewStateStore)
+    - src/store/sqlite/migrate.ts (created, 56 lines -- forward-only migration
+      runner, applied at construction/boot)
+    - src/store/sqlite/errors.ts (created, 31 lines -- PlanConfirmationError
+      taxonomy: no_plan/plan_id_mismatch/plan_expired)
+    - src/store/sqlite/migrations/0001_create_batches.sql (created)
+    - src/store/sqlite/migrations/0002_create_overrides.sql (created)
+    - src/store/sqlite/migrations/0003_create_plans.sql (created)
+    - src/store/sqlite/migrations/0004_create_confirmations.sql (created)
+    - src/store/sqlite/index.test.ts (created, 271 lines -- 12 tests: round-trip,
+      durability via a second connection, confirmation-gate transitions,
+      restart survival)
+    - Dockerfile (modified -- replaced the task-1.4-documented placeholder
+      with the real `COPY src/store/sqlite/migrations
+      ./dist/store/sqlite/migrations` line, since tsc does not copy .sql assets)
+    - openspec/changes/direct-db-integration/tasks.md (modified -- 4.1-4.7
+      marked [x])
+    - openspec/changes/direct-db-integration/state.yaml (this file)
+  tests: 77/77 passing full suite (12 new in src/store/sqlite/index.test.ts);
+    npm run typecheck clean; npm run build succeeds (tsc + vite)
+  tdd_mode: strict TDD followed for all four RED+GREEN-tagged tasks
+    (4.3-4.6); confirmed RED by running npm test -- src/store against
+    index.test.ts before index.ts/errors.ts/migrate.ts existed ("Cannot find
+    module ./errors.js"), then implemented to GREEN in one pass. One test
+    fix during GREEN: the "re-apply migrations after reopening" test left
+    two SQLite file handles open on Windows, causing an EPERM on afterEach's
+    rmSync cleanup -- fixed by explicitly closing both store instances.
+  design_decisions_made_at_store_layer:
+    - loadBatch(id)/saveBatch use String(batchNo) as the batch reference --
+      BatchAnalysis has no top-level id field; the persistence spec's own
+      example reference is "batch number"
+    - putOverride's durability proof opens a second, independent
+      better-sqlite3 connection to the same file immediately after awaiting
+      putOverride, confirming the row is visible cross-connection (not just
+      cached in this process's memory)
+    - recordConfirmation enforces the planId-match/non-expiry assertion at
+      the store layer itself (not deferred to Phase 5's API layer), throwing
+      a typed PlanConfirmationError so the API layer has a concrete error
+      taxonomy to map to HTTP responses
+    - overrides are stored in a separate table and re-applied on top of the
+      saved batch JSON inside loadBatch (last-write-wins per
+      batch_id+code_id+field), rather than mutating the saved batch row in
+      place -- keeps saveBatch/loadBatch a pure snapshot round-trip
+      independent of override history
+  delivery_blocked: false
+  budget_note: 'final diff origin/feat/domain-rules...feat/sqlite-store is
+    632 changed lines (628 insertions + 4 deletions across 9 files), within
+    this session''s 800-line review budget. No size:exception needed;
+    PR #5 opened without requesting one.'
+  ai_attribution_scan: clean, zero Co-Authored-By/Claude Code footers/
+    session links across both new commits (RED test commit, GREEN
+    implementation commit) and PR #5 body
+  engram_tooling_gap: mem_search/mem_get_observation/mem_save/mem_context/
+    mem_save_prompt/mem_current_project/mem_session_summary were not present
+    in this session's tool inventory (Read, Edit, Write, Glob, Grep, Bash
+    only) -- same recurring gap independently noted for every prior apply
+    and verify work-unit session on this change. apply-progress could only
+    be persisted to the OpenSpec side of the hybrid artifact store (this
+    state.yaml block plus tasks.md checkboxes), not to Engram under
+    sdd/direct-db-integration/apply-progress as instructed.
+work_unit_4_verify_result:
+  status: PASS_WITH_WARNINGS
+  verdict: pass_with_warnings
+  scope: Work Unit 4 ONLY, Phase 4 SQLite store, tasks 4.1-4.7
+  reproduced_independently: npm install, npm test -- src/store (12/12), npm
+    test full suite (77/77), npm run typecheck (clean), npm run build
+    (clean), gh pr view 5, git diff --numstat for both implementation-only
+    (632 lines/9 files) and full (724 lines/11 files) scope, exact match to
+    the apply-phase budget_note claim, git log AI-attribution scan (clean)
+  red_state_replay: new for this unit -- used git worktree add at commit
+    7445d22 (the test-only commit) with node_modules copied from the main
+    worktree, reproduced the exact claimed RED failure ("Cannot find module
+    ./errors.js"). Confirms 7445d22/1a2d446 is a genuinely bisectable
+    RED-then-GREEN commit pair, unlike work units 2 and 3 where tests and
+    implementation were committed together
+  critical_findings: 0
+  warnings:
+    - RESOLVED (commit 15f359b, post-verify fix): putOverride's field
+      parameter had no runtime validation against the 8 known overridable
+      fields (office, country, region, ibd, nscc, origin, dealer, agente).
+      Fixed by validating with the existing isOverridableField() guard at
+      write time (it was previously only enforced at read time) and
+      throwing a new InvalidOverrideFieldError on an unknown field. RED
+      test added first (13th test in index.test.ts), full suite now 78/78,
+      typecheck/build clean, pushed to feat/sqlite-store (updates PR #5 in
+      place), AI-attribution scan clean.
+    - RESOLVED (commit 15f359b, same push): design.md's Testing Strategy
+      table suggests ":memory:" SQLite for this layer; the actual tests use
+      a real temp-file-backed database instead. Documented as intentional
+      with a one-line docstring note in src/store/sqlite/index.ts
+      (":memory:" would break the second-connection durability proof).
+    - PR #5 targets feat/domain-rules rather than feat/ports-mcp-client
+      (work unit 3's own branch name), because PR #4 was already merged
+      into feat/domain-rules before this branch was cut -- a legitimate
+      "merge-down" chain variant, correctly scoped, but worth confirming
+      intentional before work unit 5 branches
+  spec_compliance: 3/5 requirements and 3/5 scenarios claimed for this unit
+    (persistence: Restart Survival, Durable Override Writes, Batch
+    Retrieval by Reference) are fully end-to-end COMPLIANT; 1/5
+    (Single-User Scope) is documented-only by design; 1/5 (write-confirmation
+    Two-Step Explicit Confirmation) is store-layer PARTIAL, full flow
+    deferred to Phase 5/6 as tasks.md itself already discloses. Strict
+    machine envelope reports 3/3 (counts only the fully end-to-end
+    compliant subset, same convention as work units 2 and 3's envelopes)
+  ai_attribution_scan: clean, zero Co-Authored-By/Claude Code footers/
+    session links across both new commits and PR #5 body (the one string
+    match found is the PR's own legitimate self-attestation checklist line,
+    not actual attribution)
+  validator: gentle-ai sdd-verify-validate ran against the exact persisted
+    candidate bytes (yaml-envelope-first ordering, per the report-format
+    schema's "first non-empty content must be fenced yaml" rule) with
+    --requirements 3 --scenarios 3; returned valid true, verdict
+    pass_with_warnings, before any write to verify-report.md
+  engram_tooling_gap: mem_search/mem_get_observation/mem_save and every
+    other mem_* tool were absent from this verify session's own tool
+    inventory too (Read, Grep, Glob, Bash only) -- same recurring gap
+    independently noted for every prior apply/verify session on this
+    change. The verify report was persisted to the OpenSpec side of the
+    hybrid artifact store only (this state.yaml block plus
+    openspec/changes/direct-db-integration/verify-report.md, Work Unit 4
+    section appended after Work Unit 3). The orchestrator must persist the
+    Engram side itself under topic key
+    sdd/direct-db-integration/verify-report/unit-4 using this state.yaml
+    block plus verify-report.md Work Unit 4 section as source content.

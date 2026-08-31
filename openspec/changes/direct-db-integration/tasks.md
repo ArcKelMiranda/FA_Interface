@@ -67,13 +67,13 @@ Chain strategy: pending
 
 ## Phase 4: SQLite Store
 
-- [ ] 4.1 Create `src/store/sqlite/index.ts` implementing `ReviewStateStore`; open WAL-mode `better-sqlite3` connection.
-- [ ] 4.2 Create numbered forward-only migrations in `src/store/sqlite/migrations/*.sql` (batches, overrides, plans, confirmations), applied at boot.
-- [ ] 4.3 RED+GREEN: `saveBatch`/`loadBatch` round-trip. (spec: persistence — Restart Survival)
-- [ ] 4.4 RED+GREEN: `putOverride` durability — write completes before the acknowledgment returns. (spec: persistence — Durable Override Writes)
-- [ ] 4.5 RED+GREEN: `savePlan`/`recordConfirmation` — status transitions, `planId` match/expiry assertion. (spec: write-confirmation — Two-Step Explicit Confirmation)
-- [ ] 4.6 RED+GREEN: batch retrieval by reference after a simulated restart (reopen store from same migration set). (spec: persistence — Batch Retrieval by Reference)
-- [ ] 4.7 Document single-writer/single-user scope in the store module (no lock/merge logic). (spec: persistence — Single-User Scope)
+- [x] 4.1 Create `src/store/sqlite/index.ts` implementing `ReviewStateStore`; open WAL-mode `better-sqlite3` connection. **NOTE**: `loadBatch(id)`/`saveBatch` use `String(batch.batchNo)` as the batch reference — `BatchAnalysis` has no top-level `id` field (only `codeEntrySchema.id` per code), and the persistence spec's own example reference is "batch number".
+- [x] 4.2 Create numbered forward-only migrations in `src/store/sqlite/migrations/*.sql` (batches, overrides, plans, confirmations), applied at boot. **RESOLVED**: `Dockerfile` had a documented placeholder for this exact step (task 1.4); replaced it with `COPY src/store/sqlite/migrations ./dist/store/sqlite/migrations` since `tsc` does not copy non-`.ts` assets.
+- [x] 4.3 RED+GREEN: `saveBatch`/`loadBatch` round-trip. (spec: persistence — Restart Survival)
+- [x] 4.4 RED+GREEN: `putOverride` durability — write completes before the acknowledgment returns. (spec: persistence — Durable Override Writes) **NOTE**: proven by opening a second, independent `better-sqlite3` connection to the same file immediately after `await`ing `putOverride`, confirming the row is visible cross-connection rather than only in this process's in-memory state.
+- [x] 4.5 RED+GREEN: `savePlan`/`recordConfirmation` — status transitions, `planId` match/expiry assertion. (spec: write-confirmation — Two-Step Explicit Confirmation) **NOTE**: the store itself throws a typed `PlanConfirmationError` (`no_plan`/`plan_id_mismatch`/`plan_expired`) rather than silently no-op'ing, so Phase 5's API layer has a concrete error taxonomy to map to HTTP responses (e.g. the `501`/mismatch cases in spec write-confirmation).
+- [x] 4.6 RED+GREEN: batch retrieval by reference after a simulated restart (reopen store from same migration set). (spec: persistence — Batch Retrieval by Reference)
+- [x] 4.7 Document single-writer/single-user scope in the store module (no lock/merge logic). (spec: persistence — Single-User Scope)
 
 ## Phase 5: API Layer
 

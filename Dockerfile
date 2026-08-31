@@ -46,10 +46,11 @@ ENV NODE_ENV=production \
 COPY package.json ./
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
-# NOTE: src/store/sqlite/migrations/*.sql lands in Phase 4 (task 4.2). Add a
-# `COPY src/store/sqlite/migrations ./dist/store/sqlite/migrations` line here
-# once that directory exists — omitted now so this Dockerfile builds cleanly
-# against the current (migration-less) tree.
+# tsc does not copy non-.ts assets, so the forward-only SQL migrations
+# (src/store/sqlite/migrations/*.sql, task 4.2) must be copied explicitly.
+# src/store/sqlite/migrate.ts resolves this directory relative to its own
+# compiled location (dist/store/sqlite/migrations), so this path must match.
+COPY src/store/sqlite/migrations ./dist/store/sqlite/migrations
 
 EXPOSE 8080
 CMD ["node", "dist/index.js"]
