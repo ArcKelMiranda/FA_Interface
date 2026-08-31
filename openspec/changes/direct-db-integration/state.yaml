@@ -16,11 +16,15 @@ dependency_graph:
   tasks: done
   apply: work_unit_6_of_8_done
   verify: work_unit_1_PASS, work_unit_2_PASS_WITH_WARNINGS, work_unit_3_PASS_WITH_WARNINGS,
-    work_unit_4_PASS_WITH_WARNINGS, work_unit_5_PASS_WITH_WARNINGS
+    work_unit_4_PASS_WITH_WARNINGS, work_unit_5_PASS_WITH_WARNINGS,
+    work_unit_6_FAIL_then_fixed
   archive: pending
-next_recommended: sdd-verify for work unit 6 (Phase 6, Web SPA, all 12 tasks
-  done, split across 5 chained PRs feat/web-tokens..feat/web-spa) -- then
-  sdd-apply for work unit 7 (Phase 7, Integration/E2E)
+next_recommended: sdd-apply for work unit 7 (Phase 7, Integration/E2E),
+  branching from feat/web-spa -- work unit 6 initially verified FAIL (3
+  CRITICAL wiring gaps), all 3 fixed and pushed to PR #12 (see
+  work_unit_6_verify_result); a re-verify pass of the fix is recommended
+  before archive, though the orchestrator independently reproduced
+  151/151 tests, clean typecheck/build after the fix
 remote_repo: https://github.com/ArcKelMiranda/FA_Interface.git
 git_local: initialized, remote "origin" added, no commits yet
 chain_strategy: feature-branch-chain
@@ -608,3 +612,88 @@ work_unit_6_result:
     the hybrid artifact store (this state.yaml block plus tasks.md
     checkboxes), not to Engram under sdd/direct-db-integration/apply-progress
     as instructed.
+work_unit_6_verify_result:
+  status: FAIL_then_fixed
+  verdict: fail_then_fixed
+  scope: Work Unit 6, Phase 6 Web SPA, tasks 6.1-6.12, PRs #8-#12
+  reproduced_independently: npm install, full npm test (144/144 before fix),
+    npm run typecheck (clean), npm run build (clean), per-PR git diff
+    --numstat matching all 5 claimed line counts exactly, gh pr view 8-12
+    all OPEN with correct chained base/head, git log AI-attribution scan
+    (clean)
+  critical_findings: 3
+  critical_findings_detail:
+    - FA resolution (task 6.7) was non-functional end-to-end -- App.tsx
+      never passed onSelectFaAlternative/onSelectExistingFa/onCreateNewFa/
+      onReactivateDiscardedFa to FieldDrawer; they fell back to no-op
+      () => {}. FaEditor.test.tsx only passed because it mocks the
+      callbacks; App.test.tsx never opened the fa field's drawer.
+    - Override marker/restore (task 6.8) was dead code -- OverrideMarker
+      rendered nowhere in production, App.tsx had no isOverride state at
+      all, onMarkForReview never wired either.
+    - "Precedent codes" were never rendered in the drawer despite both the
+      spec text and FieldDrawer.tsx's own doc comment claiming they were
+      shown (CodeEntry.references never read).
+  warnings:
+    - missing UI implementation for fa-assignment's False-Company Alert /
+      Generic Unidentified Placeholder (likely a tasks.md coverage gap,
+      not this unit's fault)
+    - non-bisectable per-slice commit history (same pattern as WU2/WU3)
+    - an unused --shadow-focus CSS token
+  spec_compliance_at_fail: 9/16 in-scope scenarios (7/13 requirements)
+    fully end-to-end compliant before the fix; 4 scenarios failed
+    end-to-end despite passing isolated component tests; 2 scenarios
+    (Two-Step Confirmation, Approval-Request Signal) honestly disclosed as
+    blocked on the external yhat-mcp-server write-tools dependency, not
+    treated as defects
+  post_verify_fix: 'All 3 CRITICAL findings fixed directly by the
+    orchestrator (strict TDD, RED-then-GREEN) on feat/web-spa, pushed to
+    origin (updates PR #12 in place). Fix commits: (1) wired
+    onSelectFaAlternative/onSelectExistingFa/onCreateNewFa/
+    onReactivateDiscardedFa in App.tsx to real client-side state updates
+    on code.fa (no backend persistence path exists for FA resolution --
+    ReviewStateStore.putOverride only covers the 8 scalar fields, not fa;
+    confirmed via src/store/sqlite/index.ts OVERRIDABLE_FIELDS -- so FA
+    resolution is honestly scoped as client-side/session-only, same
+    pattern already declared for the override marker); existing-by-Id
+    uses a "FA #<id>" placeholder name (no name available client-side);
+    new-FA uses a negative Date.now()-based placeholder id, state:"nuevo",
+    status:"resolved" (write preview reflects it per spec); reactivating a
+    discarded candidate moves it into alternatives WITHOUT auto-resolving,
+    per the exact spec scenario wording ("becomes an assignable
+    alternative"), and the open drawer refreshes live via a new
+    buildFaDrawerDetail helper. (2) wired isOverride/onRestore/
+    onMarkForReview in App.tsx (overriddenFields Set + originalFieldValues
+    map preserve the pre-override value for restore); replaced
+    FieldDrawer''s inline restore button with the actual OverrideMarker
+    component so it is no longer orphaned. (3) added a references field to
+    NonFaFieldDetail and rendered a "Códigos precedentes" section
+    (title/description/columns/rows table/footnote) in FieldDrawer.tsx,
+    sourced from CodeEntry.references. Added 7 new App-level integration
+    tests exercising each fix end-to-end (real button clicks, real state
+    assertions), not just prop-passed mocks -- the exact gap verify found
+    missing. Full suite 151/144 -> 151/151 after the fix (7 new), npm run
+    typecheck clean, npm run build clean. AI-attribution scan clean on all
+    fix commits.'
+  incident_note: 'A background sdd-apply-style fix agent (launched to fix
+    these same 3 findings) hit a session rate limit and failed before
+    writing any code. Separately, and apparently caused by that same
+    failed agent process, the orchestrator''s own in-progress edits to
+    FieldDrawer.tsx and App.test.tsx, plus this verify session''s own
+    uncommitted state.yaml/verify-report.md updates, were silently reverted
+    on disk mid-session (root cause not fully diagnosed -- suspected a git
+    operation run by the failed agent before its crash). The orchestrator
+    detected this via a stale-file warning, confirmed the loss via git
+    status and content greps, and redid the lost edits from content already
+    held in conversation context. No data was lost that could not be
+    reconstructed; this state.yaml block and the verify-report.md Work Unit
+    6 section were rewritten from the original verify agent''s full
+    reported findings. Lesson: do not run a background agent concurrently
+    with direct manual edits to the same working tree.'
+  ai_attribution_scan_post_fix: clean, zero Co-Authored-By/Claude Code
+    footers/session links across all new fix commits
+  engram_tooling_gap: mem_* tools were not available in the verify session
+    that produced the FAIL verdict; the post-fix work was done directly by
+    the orchestrator session, which does have mem_* tools available -- an
+    Engram save for this outcome should still be made by the orchestrator
+    after this state.yaml/verify-report.md persistence completes.

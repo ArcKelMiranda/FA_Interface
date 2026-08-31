@@ -924,3 +924,48 @@ What could not be verified in this environment: nothing material. Both PRs were 
 5. `InvalidOverrideFieldError`, added post-Work-Unit-4-verify specifically to close that report's WARNING 1, is now genuinely consumed and mapped to `400` by this unit's `PUT` route, with a dedicated passing test - closing that prior gap rather than leaving it dangling.
 
 ---
+
+# Verification Report: direct-db-integration - Work Unit 6 (Phase 6, Web SPA)
+
+**Verdict: FAIL, then fixed** -- 3 CRITICAL findings, 3 WARNING, 4 SUGGESTION at first pass; all 3 CRITICAL findings fixed and independently re-run green before this record was persisted.
+
+## Scope
+
+Work Unit 6, Phase 6 Web SPA, tasks 6.1-6.12, delivered as 5 chained PRs (#8 `feat/web-tokens`, #9 `feat/web-drawer`, #10 `feat/web-table`, #11 `feat/web-confirm`, #12 `feat/web-spa`).
+
+## What was independently reproduced (all matched claims exactly)
+
+- `npm install` clean, `npm test` -> 144/144 passing (before fix), `npm run typecheck` clean, `npm run build` clean.
+- Per-PR diff sizes: 693/667/719/271 changed lines (exact match); combined 5-PR code-only diff 2920 lines (exact match), no scope leakage.
+- All 5 PRs OPEN with the correct chained base/head sequence. Zero AI/Claude attribution anywhere.
+- `#00E3DB` genuinely scoped to `ConfirmControl` only. Grayscale-safe status encoding, dialog/Escape semantics, real filter/density wiring, three genuinely distinct empty/loading/error states -- all confirmed with real behavioral tests.
+
+## CRITICAL findings (discovered by tracing actual production wiring, not the apply report's prose)
+
+1. **FA resolution (task 6.7) was non-functional end-to-end.** `App.tsx` never passed `onSelectFaAlternative`/`onSelectExistingFa`/`onCreateNewFa`/`onReactivateDiscardedFa` to `FieldDrawer`; they fell back to `?? (() => {})` no-ops. `FaEditor.test.tsx` passed only because it mocks the callbacks; `App.test.tsx` never opened the `fa` field's drawer.
+2. **Override marker/restore (task 6.8) was dead code.** `OverrideMarker` was rendered nowhere in production, and `App.tsx` had no `isOverride` state at all. `onMarkForReview` was also never wired.
+3. **"Precedent codes" were never rendered** in the drawer, despite both the spec text and `FieldDrawer.tsx`'s own doc comment claiming they were shown (`CodeEntry.references` was never read).
+
+## Warnings (non-blocking)
+
+Missing UI implementation for fa-assignment's False-Company Alert / Generic Unidentified Placeholder (likely a tasks.md coverage gap); non-bisectable per-slice commit history (same pattern as WU2/WU3); an unused `--shadow-focus` CSS token.
+
+## Spec compliance (before fix)
+
+9/16 in-scope scenarios (7/13 requirements) fully end-to-end compliant. 4 scenarios failed end-to-end despite passing isolated component tests. 2 scenarios (Two-Step Confirmation, Approval-Request Signal) honestly disclosed as blocked on the external `yhat-mcp-server` write-tools dependency, not treated as defects.
+
+## Post-verify fix
+
+All 3 CRITICAL findings were fixed directly by the orchestrator, strict TDD (RED-then-GREEN), on branch `feat/web-spa`:
+
+1. **FA resolution**: wired all 4 FA callbacks in `App.tsx` to real client-side state updates on `code.fa`. No backend persistence path exists for FA resolution -- `ReviewStateStore.putOverride` only covers the 8 scalar `fields`, not `fa` (confirmed via `src/store/sqlite/index.ts`'s `OVERRIDABLE_FIELDS`) -- so this is honestly scoped as client-side/session-only, the same pattern already declared for the override marker. Reactivating a discarded candidate moves it into `alternatives` without auto-resolving, matching the exact spec wording ("becomes an assignable alternative"); the open drawer refreshes live via a new `buildFaDrawerDetail` helper.
+2. **Override marker/restore**: wired `overriddenFields`/`originalFieldValues` state in `App.tsx` (preserving the pre-override value for restore); replaced `FieldDrawer`'s inline restore button with the actual `OverrideMarker` component so it is no longer orphaned; wired `onMarkForReview` to set a field's status to `needs_confirm`.
+3. **Precedent codes**: added a `references` field to `NonFaFieldDetail` and rendered a "Codigos precedentes" section (title/description/columns/rows table, footnote) in `FieldDrawer.tsx`, sourced from `CodeEntry.references`.
+
+7 new App-level integration tests were added, each exercising the fix end-to-end (real button clicks, real state assertions) -- exactly the kind of test the verify pass found missing. Full suite: 144/144 -> 151/151 after the fix. `npm run typecheck` clean, `npm run build` clean. AI-attribution scan clean on all fix commits.
+
+## Incident note
+
+A background fix agent (launched to address these same 3 findings) hit a session rate limit and failed before writing any code. Separately -- and apparently caused by that same failed agent process -- the orchestrator's own in-progress edits to `FieldDrawer.tsx` and `App.test.tsx`, plus this verify session's own uncommitted `state.yaml`/`verify-report.md` updates, were silently reverted on disk mid-session. Detected via a stale-file warning, confirmed via `git status` and content greps, and reconstructed from content already held in conversation context. No data was permanently lost. Lesson: do not run a background agent concurrently with direct manual edits to the same working tree.
+
+---
