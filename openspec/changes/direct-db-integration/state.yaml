@@ -14,13 +14,18 @@ dependency_graph:
   specs: done
   design: done
   tasks: done
-  apply: work_unit_4_of_8_done
+  apply: work_unit_5a_of_8_done
   verify: work_unit_1_PASS, work_unit_2_PASS_WITH_WARNINGS, work_unit_3_PASS_WITH_WARNINGS,
     work_unit_4_PASS_WITH_WARNINGS
   archive: pending
-next_recommended: sdd-apply for work unit 5 (Phase 5, API layer), branching from
-  feat/sqlite-store once PR #5 merges (work unit 4 verify complete,
-  PASS_WITH_WARNINGS, 3 warnings, 0 critical)
+next_recommended: 'Work unit 5 (Phase 5, API layer) was implemented in full by
+  sdd-apply (100/100 tests) but its diff (880 lines src/api/-only, 1014 with
+  SDD docs) exceeded the 800-line review_budget_lines. User chose to split
+  into two PRs rather than grant size:exception. Split 5a (tasks 5.1-5.2,
+  batches.ts) is on branch feat/api-batches (off feat/sqlite-store), PR
+  pending. Split 5b (tasks 5.3-5.7, write.ts+config.ts+app.ts) will branch
+  off feat/api-batches once its PR opens. Once both are pushed/PR''d:
+  sdd-verify for work unit 5 (both splits).'
 remote_repo: https://github.com/ArcKelMiranda/FA_Interface.git
 git_local: initialized, remote "origin" added, no commits yet
 chain_strategy: feature-branch-chain
@@ -412,3 +417,24 @@ work_unit_4_verify_result:
     Engram side itself under topic key
     sdd/direct-db-integration/verify-report/unit-4 using this state.yaml
     block plus verify-report.md Work Unit 4 section as source content.
+work_unit_5a_result:
+  status: done
+  scope: Phase 5 API layer split A, tasks 5.1-5.2 only (batches GET/PUT
+    routes). Split from a single Work Unit 5 implementation after its
+    880-line (src/api/-only) diff exceeded the 800-line review budget; user
+    chose a two-PR split over size:exception. tasks 5.3-5.7 form split B
+    (work_unit_5b), branched off this branch once this PR opens.
+  branch: feat/api-batches (pushed to origin, off feat/sqlite-store at
+    6516a5a)
+  commits: 2 work-unit-shaped commits cherry-picked unmodified from the
+    original single-unit implementation (630c473 test(api): add failing
+    tests for batches GET/PUT routes, 84d151a feat(api): implement batches
+    GET/PUT routes over YhatReadPort + ReviewStateStore) plus one docs
+    commit marking 5.1-5.2 [x] in tasks.md
+  tests: 7 new tests in src/api/routes/batches.test.ts, all passing as part
+    of the original apply session's 100/100 full-suite run (78 baseline +
+    22 Phase 5 total; this split carries 7 of those 22)
+  tdd_mode: strict TDD, RED (630c473, `Cannot find module './batches.js'`)
+    then GREEN (84d151a), preserved as originally committed
+  ai_attribution_scan: clean (verified on the original feat/api-layer
+    branch before cherry-pick; commits carried over byte-identical)
