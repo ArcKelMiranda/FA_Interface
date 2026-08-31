@@ -15,10 +15,10 @@ dependency_graph:
   design: done
   tasks: done
   apply: work_unit_3_of_8_done
-  verify: work_unit_1_PASS, work_unit_2_PASS_WITH_WARNINGS
+  verify: work_unit_1_PASS, work_unit_2_PASS_WITH_WARNINGS, work_unit_3_PASS_WITH_WARNINGS
   archive: pending
-next_recommended: sdd-verify for work unit 3 (Phase 3, ports + MCP client
-  adapter, PR #4); then sdd-apply for work unit 4 (Phase 4, SQLite store)
+next_recommended: sdd-apply for work unit 4 (Phase 4, SQLite store), branching
+  from feat/ports-mcp-client once PR #4 merges
 remote_repo: https://github.com/ArcKelMiranda/FA_Interface.git
 git_local: initialized, remote "origin" added, no commits yet
 chain_strategy: feature-branch-chain
