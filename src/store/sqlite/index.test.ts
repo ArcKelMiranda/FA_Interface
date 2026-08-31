@@ -262,6 +262,10 @@ describe("SqliteReviewStateStore restart survival (spec persistence — Batch Re
     const first = new SqliteReviewStateStore(dbPath);
     first.close();
 
-    expect(() => new SqliteReviewStateStore(dbPath)).not.toThrow();
+    let second: SqliteReviewStateStore | undefined;
+    expect(() => {
+      second = new SqliteReviewStateStore(dbPath);
+    }).not.toThrow();
+    second?.close();
   });
 });
