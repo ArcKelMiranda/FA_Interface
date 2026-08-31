@@ -31,6 +31,7 @@ import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
+import { buildLocalWritePlan } from "../../domain/build-write-plan.js";
 import type { BatchAnalysis } from "../../domain/types.js";
 import type { ReviewStateStore, WritePlan } from "../../ports/ReviewStateStore.js";
 import { WRITE_PLAN_STATUS } from "../../ports/ReviewStateStore.js";
@@ -93,7 +94,7 @@ export function registerWriteRoutes(app: FastifyInstance, deps: WriteRouteDeps):
       const planResult =
         deps.writeToolsEnabled && deps.writeClient
           ? await deps.writeClient.planWrite(batchId, batch)
-          : buildLocalWritePlan(batch);
+          : buildLocalWritePlanResult(batch);
 
       const plan: WritePlan = {
         planId: planResult.planId,
@@ -158,24 +159,17 @@ function isFullyResolved(batch: BatchAnalysis): boolean {
 }
 
 /**
- * Locally-rendered write-plan preview (design.md Migration/Rollout — "the
- * plan step degrades to a locally-rendered preview built by domain/"). Pure
- * function: one summary line per resolved field, no I/O. Intentionally
- * minimal — a full production-parity SQL preview generator is a follow-up
- * (see tasks.md 5.4 NOTE), since the exact statement shape genuinely lives
- * server-side once `yhat-mcp-server` ships real write tools (task 8.4).
+ * Wraps the pure production-parity SQL preview from `domain/build-write-plan`
+ * (issue #18) with the time/random-bound `WriteToolPlanResult` envelope
+ * `store.savePlan` expects (planId + expiresAt). The SQL statements
+ * themselves are still pure domain output; only the envelope is built here.
  */
-function buildLocalWritePlan(batch: BatchAnalysis): WriteToolPlanResult {
-  const statements = batch.codes.flatMap((code) =>
-    Object.entries(code.fields).map(
-      ([fieldName, field]) => `${code.branchRep} (${code.id}): ${fieldName} = "${field.value}"`,
-    ),
-  );
-
+function buildLocalWritePlanResult(batch: BatchAnalysis): WriteToolPlanResult {
+  const { statements, affectedRows } = buildLocalWritePlan(batch);
   return {
     planId: randomUUID(),
     statements,
-    affectedRows: statements.length,
+    affectedRows,
     expiresAt: new Date(Date.now() + LOCAL_PLAN_TTL_MS).toISOString(),
   };
 }

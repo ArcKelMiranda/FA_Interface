@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { BatchAnalysis } from "../domain/types.js";
-import type { FieldOverride, ReviewStateStore, WritePlan } from "../ports/ReviewStateStore.js";
+import type {
+  FieldOverride,
+  KeyedFieldOverride,
+  ReviewStateStore,
+  WritePlan,
+} from "../ports/ReviewStateStore.js";
 import type { EntityQuery, YhatReadPort } from "../ports/YhatReadPort.js";
 import { buildApp } from "./app.js";
 import type { WriteToolClient } from "./routes/write.js";
@@ -43,6 +48,7 @@ function makeStore(overrides: Partial<ReviewStateStore> = {}): ReviewStateStore 
     putOverride: vi.fn(
       async (_batchId: string, _codeId: string, _field: string, _override: FieldOverride) => {},
     ),
+    listOverrides: vi.fn(async (_batchId: string) => [] as KeyedFieldOverride[]),
     savePlan: vi.fn(async (_batchId: string, _plan: WritePlan) => {}),
     recordConfirmation: vi.fn(async (_batchId: string, _planId: string) => {}),
     ...overrides,

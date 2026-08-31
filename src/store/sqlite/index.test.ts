@@ -180,6 +180,82 @@ describe("SqliteReviewStateStore.putOverride (spec persistence — Durable Overr
   });
 });
 
+describe("SqliteReviewStateStore.listOverrides (issue #15 — live-resolver merge path)", () => {
+  it("returns an empty array when no overrides have been persisted for the batch", async () => {
+    const store = new SqliteReviewStateStore(dbPath);
+
+    expect(await store.listOverrides("42")).toEqual([]);
+    store.close();
+  });
+
+  it("returns every persisted override keyed by (codeId, field), omitting valueId when it was null", async () => {
+    const store = new SqliteReviewStateStore(dbPath);
+    const batch = makeBatch();
+    await store.saveBatch(batch);
+
+    await store.putOverride(String(batch.batchNo), "code-1", "office", {
+      value: "Overridden Office",
+      valueId: 99,
+      overriddenAt: "2026-08-31T01:00:00.000Z",
+    });
+    await store.putOverride(String(batch.batchNo), "code-1", "agente", {
+      value: "Overridden Agente",
+      overriddenAt: "2026-08-31T01:05:00.000Z",
+    });
+
+    const overrides = await store.listOverrides(String(batch.batchNo));
+    expect(overrides).toHaveLength(2);
+    expect(overrides[0]).toEqual({
+      codeId: "code-1",
+      field: "office",
+      override: {
+        value: "Overridden Office",
+        valueId: 99,
+        overriddenAt: "2026-08-31T01:00:00.000Z",
+      },
+    });
+    expect(overrides[1]).toEqual({
+      codeId: "code-1",
+      field: "agente",
+      override: {
+        value: "Overridden Agente",
+        overriddenAt: "2026-08-31T01:05:00.000Z",
+      },
+    });
+    // valueId was null on the second override and must not appear on the
+    // returned shape (exactOptionalPropertyTypes — absent, not undefined).
+    expect("valueId" in (overrides[1]!.override as object)).toBe(false);
+    store.close();
+  });
+
+  it("survives a service restart — reopen the store and listOverrides still returns the same rows", async () => {
+    const store = new SqliteReviewStateStore(dbPath);
+    const batch = makeBatch();
+    await store.saveBatch(batch);
+    await store.putOverride(String(batch.batchNo), "code-1", "office", {
+      value: "Persisted Office",
+      valueId: 1,
+      overriddenAt: "2026-08-31T01:00:00.000Z",
+    });
+    store.close();
+
+    const reopened = new SqliteReviewStateStore(dbPath);
+    const overrides = await reopened.listOverrides(String(batch.batchNo));
+    expect(overrides).toEqual([
+      {
+        codeId: "code-1",
+        field: "office",
+        override: {
+          value: "Persisted Office",
+          valueId: 1,
+          overriddenAt: "2026-08-31T01:00:00.000Z",
+        },
+      },
+    ]);
+    reopened.close();
+  });
+});
+
 describe("SqliteReviewStateStore.savePlan/recordConfirmation (spec write-confirmation — Two-Step Explicit Confirmation)", () => {
   it("transitions a matching, unexpired plan to confirmed and records the confirmation", async () => {
     const store = new SqliteReviewStateStore(dbPath);

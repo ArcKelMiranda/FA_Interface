@@ -8,16 +8,23 @@
  * (the concrete `SqliteReviewStateStore` from Work Unit 4) — no new business
  * logic lives here, only HTTP <-> port translation.
  *
- * BLOCKING-ERROR CONTRACT (spec review-ui — Batch Load Failure Blocks
- * Rendering): the live read via `YhatReadPort.queryEntities` always runs
- * BEFORE the store is consulted. If it throws, this handler returns
- * immediately with a blocking error and never calls `store.loadBatch` — so a
- * live failure can never surface stale/cached row data.
+ * LIVE-RESOLVER MERGE STRATEGY (issue #15):
+ *   - The live `resolveBatch` from `src/domain/resolve-batch.ts` runs FIRST.
+ *   - If it throws (MCP down / read failure), the handler returns a blocking
+ *     `502 batch_load_failed` without consulting the store — the existing
+ *     blocking-error contract (spec review-ui — Batch Load Failure Blocks
+ *     Rendering) is preserved, no stale cached data leaks through.
+ *   - If a persisted `BatchAnalysis` snapshot exists, its user overrides are
+ *     layered on top of the live resolution via `applyOverridesToBatch` so
+ *     user-edited fields always win over freshly-resolved live data.
+ *   - If no persisted snapshot exists, the live resolution is returned as-is
+ *     — the "brand-new batch" case (no empty response for fresh data).
  */
 
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
+import { applyOverridesToBatch, resolveBatch } from "../../domain/resolve-batch.js";
 import type { ReviewStateStore } from "../../ports/ReviewStateStore.js";
 import type { YhatReadPort } from "../../ports/YhatReadPort.js";
 import { InvalidOverrideFieldError } from "../../store/sqlite/errors.js";
@@ -38,18 +45,14 @@ export function registerBatchesRoutes(app: FastifyInstance, deps: BatchesRouteDe
     async (request, reply) => {
       const { batchId } = request.params;
 
+      let liveBatch;
       try {
-        // A live-liveness read per PRD's `Codes` entity. This is deliberately
-        // the ONLY thing that can produce the blocking-error response below
-        // — no full live-resolver pipeline exists yet (Phase 2 built the
-        // deterministic building blocks; their orchestration into a fresh
-        // `BatchAnalysis` is a known, separately-tracked gap, not this
-        // route's job). The persisted `BatchAnalysis` snapshot from
-        // `ReviewStateStore` remains the source of the returned row data.
-        await deps.readPort.queryEntities({
-          entity: "Codes",
-          filters: [{ attribute: "BatchNo", operator: "=", value: Number(batchId) }],
-        });
+        // resolveBatch is the full Phase 2-orchestrator pipeline: it queries
+        // MCP for the codes + dedupe catalog + field catalogs, builds each
+        // CodeEntry via the deterministic building blocks, and returns a
+        // complete BatchAnalysis. This is the ONLY source of the blocking
+        // error response — if MCP fails here, we never consult the store.
+        liveBatch = await resolveBatch(batchId, deps.readPort);
       } catch (error) {
         request.log.error({ err: error }, "live batch read failed");
         return reply.code(502).send({
@@ -58,10 +61,13 @@ export function registerBatchesRoutes(app: FastifyInstance, deps: BatchesRouteDe
         });
       }
 
-      const batch = await deps.store.loadBatch(batchId);
-      if (!batch) {
-        return reply.code(404).send({ error: "batch_not_found" });
-      }
+      // Merge: layer any persisted user overrides on top of the fresh live
+      // data. If no persisted snapshot exists for this batch, listOverrides
+      // returns [] and applyOverridesToBatch returns the live batch as-is.
+      // This is the "brand-new batch" case — the live resolution IS the
+      // response, no empty 404 for fresh data.
+      const overrides = await deps.store.listOverrides(batchId);
+      const batch = applyOverridesToBatch(liveBatch, overrides);
 
       return reply.code(200).send({ batch });
     },
