@@ -1,0 +1,117 @@
+/**
+ * YHAT Design System v1.0 — design tokens (colors, radii, spacing),
+ * verbatim from the design-system token block referenced by design.md's
+ * "UI Architecture (YHAT Design System v1.0)" token-mapping table
+ * (task 6.1). Do not hand-edit values here without updating both this file
+ * and design.md's table together.
+ */
+
+:root {
+  /* Colors */
+  --color-white: #ffffff;
+  --color-black: #0d0e10;
+
+  --color-primary-1-400: #5d84b3;
+  --color-primary-1-500: #465e7b;
+  --color-primary-1-600: #2c3642;
+  --color-primary-1-700: #1e242c;
+
+  --color-primary-2-400: #a8fdfa;
+  --color-primary-2-500: #52f5ef;
+  --color-primary-2-600: #00e3db;
+  --color-primary-2-700: #02bbb4;
+  --color-primary-2-800: #008782;
+
+  --color-gray-400: #98a2b3;
+  --color-gray-500: #667085;
+  --color-gray-600: #475467;
+  --color-gray-700: #344054;
+  --color-gray-800: #1d2939;
+
+  --color-secondary-1-400: #60bbeb;
+  --color-secondary-1-500: #247aa8;
+  --color-secondary-1-600: #0c4f73;
+  --color-secondary-1-700: #033048;
+  --color-secondary-1-800: #011520;
+
+  --color-secondary-2-400: #effdff;
+  --color-secondary-2-500: #d1f9ff;
+  --color-secondary-2-600: #91e9f5;
+  --color-secondary-2-700: #45d0e3;
+  --color-secondary-2-800: #0e9db0;
+
+  --color-success: #12b76a;
+  --color-error: #e85f56;
+  --color-border: #e5e7eb;
+  --color-table-header-bg: #f9fafb;
+  --color-row-hover: #f3f4f6;
+
+  /* Status badge palette (review-ui — Accessibility-Safe Status Encoding) */
+  --status-resolved-bg: #12b76a;
+  --status-resolved-fg: #ffffff;
+  --status-needs-confirm-bg: #fef3c7;
+  --status-needs-confirm-fg: #92400e;
+  --status-needs-input-bg: #fee2e2;
+  --status-needs-input-fg: #991b1b;
+  --status-no-data-bg: #e5e7eb;
+  --status-no-data-fg: #667085;
+
+  /* Typography */
+  --font-family:
+    "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  --font-heading-1: 700 32px/40px var(--font-family);
+  --font-heading-2: 700 24px/32px var(--font-family);
+  --font-heading-3: 700 18px/24px var(--font-family);
+  --font-body: 400 16px/24px var(--font-family);
+  --font-body-2: 400 14px/20px var(--font-family);
+  --font-caption: 700 12px/20px var(--font-family);
+
+  /* Spacing (8pt scale) */
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 40px;
+  --space-6: 48px;
+  --space-8: 64px;
+  --space-10: 80px;
+  --space-12: 96px;
+
+  /* Border radius */
+  --radius-none: 0px;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-full: 100%;
+
+  /* Shadows */
+  --shadow-sm:
+    0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md:
+    0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+  --shadow-lg:
+    0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+  --shadow-focus: 0 0 0 3px rgba(0, 227, 219, 0.2);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-white);
+  color: var(--color-black);
+  font: var(--font-body);
+}
+
+/* Fingerprint ticks (task 6.5): 4x16px by default, 44x44px touch target
+   below the mobile breakpoint (YHAT accessibility — min 44x44 touch target). */
+@media (max-width: 767px) {
+  .fingerprint-tick {
+    width: 44px !important;
+    height: 44px !important;
+  }
+}

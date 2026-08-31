@@ -1,0 +1,47 @@
+services:
+  facodes:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: facodes:internal
+    env_file:
+      - .env
+    # facodes reaches yhat-mcp-server over HTTP(S) at YHAT_INTERNAL_HOST, not
+    # over a shared Docker network (resolved: yhat-mcp-server's own
+    # docker-compose.yml has no declared "yhat-internal" network — only the
+    # implicit Compose default network, publishing 127.0.0.1:3000 on the
+    # host). In production this default resolves through yhat-mcp-server's
+    # own Caddy-fronted `yhat-mcp-proxy` service (its `ec2` compose profile,
+    # TLS on 443). For local development, either:
+    #   (a) point YHAT_INTERNAL_HOST/YHAT_MCP_URL at an address where your
+    #       own yhat-mcp-server instance is already reachable (e.g. its
+    #       published 127.0.0.1:3000 mapping), or
+    #   (b) run both stacks with a manually-created shared Docker network
+    #       and point YHAT_INTERNAL_HOST at yhat-mcp-server's service name
+    #       on that network.
+    environment:
+      PORT: "8080"
+      YHAT_INTERNAL_HOST: ${YHAT_INTERNAL_HOST:-mcp.internal.yhat}
+      WRITE_TOOLS_ENABLED: ${WRITE_TOOLS_ENABLED:-false}
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - facodes-data:/data
+    init: true
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          const net = require('node:net');
+          const socket = net.connect(8080, '127.0.0.1', () => { socket.end(); process.exit(0); });
+          socket.on('error', () => process.exit(1));
+          setTimeout(() => process.exit(1), 3000);
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  facodes-data:
