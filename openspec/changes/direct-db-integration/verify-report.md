@@ -492,3 +492,206 @@ build_command: npm run build
 build_exit_code: 0
 build_output_hash: sha256:f5982bbccacf9223b55d702baf0b502f6a861a48f447386d2a6a68e9d15ce60b
 ```
+
+```yaml
+schema: gentle-ai.verify-result/v1
+evidence_revision: sha256:2ead63b2ac0756351c0f1022b0d62c255390ae316b8f216c312e0c781f923b7d
+verdict: pass_with_warnings
+blockers: 0
+critical_findings: 0
+requirements: 3/3
+scenarios: 3/3
+test_command: npm test
+test_exit_code: 0
+test_output_hash: sha256:424c7f44fbd64d38bebbbb7862e2a348bbfa0ebb04c8d6e71802c6602057cb3c
+build_command: npm run build
+build_exit_code: 0
+build_output_hash: sha256:d94cc60cee191e15725485b8f76d535c350f2e34bb48bfd1025310392e9d3e98
+```
+# Verification Report: direct-db-integration - Work Unit 4 (Phase 4, SQLite Store)
+
+**Change**: direct-db-integration
+**Scope**: Work Unit 4 ONLY - Phase 4 (SQLite Store), tasks 4.1-4.7
+**Branch**: feat/sqlite-store (base feat/domain-rules, which now contains Phase 2+3 merged via PR #4), PR #5 (open, confirmed via `gh pr view 5`)
+**Mode**: Strict TDD
+**Envelope note**: the strict machine-readable envelope above reports requirements 3/3 and scenarios 3/3 because it counts only the requirements fully end-to-end COMPLIANT for this unit (Restart Survival, Durable Override Writes, Batch Retrieval by Reference), consistent with the counting convention already used in the Work Unit 2 and Work Unit 3 envelopes for this same change. The full informational scope this unit touches is 5 requirements / 5 scenarios (4 from persistence, 1 from write-confirmation); the remaining 2 (Single-User Scope, Two-Step Explicit Confirmation) are analyzed separately in the Spec Compliance Matrix below as DOCUMENTED and PARTIAL respectively, distinct from this attestation scope.
+**apply-progress artifact**: not retrievable via Engram this session - `mem_search`/`mem_get_observation`/`mem_save` and every other `mem_*` tool were absent from this agent's tool inventory (Read, Grep, Glob, Bash only), the same recurring gap independently logged for every prior apply/verify session on this change (see `engram_tooling_gap` entries in `state.yaml`). Verification below is based on independent reproduction: actual repository files, `git log`/`git show` at commit granularity (including a temporary `git worktree` checkout of the pre-implementation commit to literally re-run the claimed RED state), `tasks.md` inline notes, the `work_unit_4_result` block in `state.yaml`, `gh pr view 5`, and live command execution - not on any apply-phase self-report text.
+
+---
+
+## Reproduction Summary (independently re-run in this environment)
+
+| Check | Command | Result |
+|---|---|---|
+| Working tree / branch | `git status`, `git log --oneline -10` | On `feat/sqlite-store`, up to date with `origin/feat/sqlite-store`, working tree clean; matches claimed branch |
+| Dependency install | `npm install` | Up to date, 284 packages audited, 0 vulnerabilities |
+| Store test suite | `npm test -- src/store` | 1 file, 12/12 passed - matches claim exactly |
+| Full test suite | `npm test` | 15 files, 77/77 passed - matches claim exactly |
+| Type check | `npm run typecheck` | Clean, no errors |
+| Build | `npm run build` | tsc clean + vite build succeeds (dist/web/index.html, dist/web/assets/*) |
+| Diff size (implementation only) | `git diff --numstat origin/feat/domain-rules...feat/sqlite-store` (excl. state.yaml/tasks.md) | 632 changed lines (628 insertions + 4 deletions) across 9 files - exact match to the budget_note claim |
+| Diff size (incl. SDD docs) | same, full diff | 724 changed lines (710 insertions + 14 deletions) across 11 files - exact match to the claim |
+| PR metadata | `gh pr view 5 --json state,baseRefName,headRefName,additions,deletions,changedFiles` | OPEN, feat/sqlite-store -> feat/domain-rules, additions 710 / deletions 14 / changedFiles 11 - matches the diff numbers above exactly |
+| RED-state replay (new, see below) | `git worktree add` at commit 7445d22, `npm test` inside it | Confirmed genuine RED: Cannot find module ./errors.js - the exact error text apply claimed |
+| Commit message / PR body AI-attribution scan | git log across all commits on branch through a case-insensitive claude/anthropic/co-authored/generated-with/ai-generated/session grep; gh pr view 5 body through the same pattern | Commit log: zero matches. PR body: one match, but it is the literal checklist line stating attribution was scanned and found clean - a legitimate self-attestation line, not actual attribution (same pattern already accepted in the Work Unit 2 report for a legitimate mention of the word Claude in a v5-artifact-provenance context). Constraint satisfied. |
+
+---
+
+## Task-by-Task Verification
+
+| Task | Claimed | Verified | Notes |
+|---|---|---|---|
+| 4.1 src/store/sqlite/index.ts implementing ReviewStateStore; WAL-mode better-sqlite3 connection | [x] with NOTE | Confirmed | SqliteReviewStateStore implements every method of ReviewStateStore (src/ports/ReviewStateStore.ts) with matching signatures - saveBatch, loadBatch, putOverride, savePlan, recordConfirmation - no drift between port and implementation. Constructor sets journal_mode = WAL and foreign_keys = ON. The NOTE's claim that BatchAnalysis has no top-level id field is independently confirmed by reading src/domain/types.ts: batchAnalysisSchema has contractVersion/batchNo/snapshot/codes only; only codeEntrySchema (a nested code, not the batch) has an id field. Using String(batchNo) as the batch reference is consistent with the persistence spec's own scenario wording, "a batch reference (e.g., batch number)" - re-read directly from specs/persistence/spec.md, not just the apply report's paraphrase. |
+| 4.2 Numbered forward-only migrations under migrations/*.sql, applied at boot | [x] with RESOLVED note | Confirmed | 4 migration files present (0001_create_batches.sql ... 0004_create_confirmations.sql), each with a CREATE TABLE IF NOT EXISTS and a doc comment tying it back to a spec/design line. runMigrations (migrate.ts) tracks applied files in a schema_migrations table, sorts pending files, and never re-runs an already-applied one - genuinely forward-only. The Dockerfile RESOLVED note (COPY src/store/sqlite/migrations ./dist/store/sqlite/migrations) is present at Dockerfile line 53, with an inline comment explaining tsc does not copy non-.ts assets. |
+| 4.3 RED+GREEN: saveBatch/loadBatch round-trip (spec persistence - Restart Survival) | [x] | Confirmed, genuine RED+GREEN | 3 real test cases (round-trip, unknown-reference returns null, re-save overwrites the previous snapshot). Not a stub - the round-trip test asserts full deep equality against the original batch object, not just a partial field. |
+| 4.4 RED+GREEN: putOverride durability (spec persistence - Durable Override Writes) | [x] with NOTE | Confirmed, meaningfully tested | The durability test opens a second, independent, read-only better-sqlite3 connection to the same file immediately after awaiting putOverride, and reads the row through that second connection - genuinely proves the write is durable on disk before the promise resolves, not merely cached in this process's memory. A second test confirms the override is applied on top of the loaded batch (and that an untouched field is unaffected); a third confirms last-write-wins on a repeated override. |
+| 4.5 RED+GREEN: savePlan/recordConfirmation - status transitions, planId match/expiry assertion (spec write-confirmation - Two-Step Explicit Confirmation) | [x] with NOTE | Confirmed at store-layer scope; NOTE is honest about the split | recordConfirmation throws a typed PlanConfirmationError with kind no_plan/plan_id_mismatch/plan_expired, matching errors.ts exactly, which itself cites design.md's sequence-diagram line about asserting planId matches the persisted plan and has not expired, verbatim (re-read design.md lines 94-98 directly, confirmed the quoted line is accurate, not paraphrased). 4 test cases cover: successful confirm-and-record, planId mismatch (plan stays awaiting_confirmation), expired plan (rejects with PlanConfirmationError, checked twice - once for instanceof, once for kind), and no-plan-exists. The task's own NOTE ("so Phase 5's API layer has a concrete error taxonomy to map to HTTP responses") already discloses this is groundwork for Phase 5, not a claim that the full UI/API two-step-confirmation flow is delivered - see Spec Compliance Matrix below for the precise scope boundary. |
+| 4.6 RED+GREEN: batch retrieval by reference after a simulated restart (spec persistence - Batch Retrieval by Reference) | [x] | Confirmed | Two tests: (a) close the store, construct a brand-new SqliteReviewStateStore instance against the same file path, loadBatch returns the override-applied state - a faithful simulation of a process restart since the store class carries no state outside the SQLite file itself; (b) re-opening an already-migrated file does not throw (idempotent migration re-application, schema_migrations prevents re-running). |
+| 4.7 Document single-writer/single-user scope (spec persistence - Single-User Scope) | [x] | Confirmed, correctly documentation-only | index.ts lines 8-18 carry an explicit doc comment: single facodes process, one database file, no optimistic-locking/conflict-detection/merge logic, putOverride/savePlan are last-write-wins by design. This matches the spec's own Single-User Scope requirement text almost verbatim ("NOT required to resolve concurrent-editing conflicts... no scenario in this spec requires conflict resolution, locking, or merge behavior"). Not RED+GREEN-tagged in tasks.md (unlike 4.3-4.6), so the absence of a dedicated test is expected, not a gap - the requirement itself is a negative/scope statement, not a positive behavior to assert against. |
+
+---
+
+## RED-State Replay (independently reproduced, not merely trusted from the self-report)
+
+Unlike Work Units 2 and 3 (where tests and implementation were committed together, making true RED-state replay impossible - see those reports' WARNING findings), Work Unit 4's two Phase-4 commits are cleanly split:
+
+- 7445d22 test(store): add SQLite ReviewStateStore round-trip and confirmation-gate tests (271 insertions, 1 file: index.test.ts only)
+- 1a2d446 feat(store): implement SQLite ReviewStateStore with forward-only migrations (adds index.ts, errors.ts, migrate.ts, 4 migration SQL files, Dockerfile)
+
+git show 7445d22:src/store/sqlite/index.ts (and errors.ts, migrate.ts) all return "fatal: path exists on disk, but not in 7445d22" - confirming the test-only commit genuinely predates any implementation file. This was reproduced live in a scratch git worktree checked out at 7445d22 (with the working node_modules copied over rather than rebuilding better-sqlite3 natively, to avoid an unrelated node-gyp/Node 24 toolchain mismatch in this environment): running vitest against src/store fails with:
+
+Error: Cannot find module ./errors.js imported from src/store/sqlite/index.test.ts
+
+which is the exact error text state.yaml's work_unit_4_result.tdd_mode field claims ("Cannot find module ./errors.js"). This is a genuine, bisectable RED-then-GREEN commit pair, and a concrete process improvement over the two prior work units.
+
+---
+
+## Spec Compliance Matrix
+
+Re-read directly from specs/persistence/spec.md (5 requirements / 5 scenarios, one scenario each: Restart Survival, Cross-Machine Resumability, Durable Override Writes, Batch Retrieval by Reference, Single-User Scope) and specs/write-confirmation/spec.md (4 requirements / 5 scenarios: Full Write Preview Rendering, Commit Action Disabled Until Upstream Write Tools Exist x2 scenarios, Two-Step Explicit Confirmation, Approval-Request Signal Rendering). Work Unit 4's own task annotations claim 4 of the 5 persistence requirements (everything except Cross-Machine Resumability, which tasks.md explicitly forward-tracks to task 7.2's E2E container-restart test - confirmed present at that line, not silently dropped) plus 1 of the 4 write-confirmation requirements.
+
+| Requirement | Scenario | Test | Result |
+|---|---|---|---|
+| Restart Survival | Overrides survive a service restart | index.test.ts round-trip/restart-survival tests | COMPLIANT - unlike the mcp-client/review-ui requirements scored in Work Units 2-3, this requirement's text names no UI/API behavior at all; it is entirely about server-side persistence, which is exactly what the store class is and what this test proves |
+| Durable Override Writes | Crash immediately after confirming an override | index.test.ts second-connection durability test | COMPLIANT |
+| Batch Retrieval by Reference | Retrieving a known batch after restart | index.test.ts restart-survival describe block | COMPLIANT |
+| Cross-Machine Resumability | Resuming on a different machine | none in this unit (by design - forward-tracked to task 7.2) | OUT OF SCOPE for this unit, correctly not claimed anywhere in tasks.md/state.yaml for Work Unit 4 |
+| Single-User Scope | No concurrent multi-user conflict handling required | in-code doc comment only, task 4.7 not RED+GREEN-tagged | DOCUMENTED, not test-covered - reasonable, since the requirement is a negative/scope statement ("no scenario requires..."), not a positive behavior a unit test can assert against |
+| Two-Step Explicit Confirmation | Commit requires a separate confirmation step | index.test.ts savePlan/recordConfirmation tests (4 tests) | PARTIAL - the store-layer planId match/expiry assertion is genuinely implemented and tested; the scenario's full text ("the system first calls the planning/approval-request tool and renders its response... a subsequent, distinct confirmation action invokes the committing call") describes an API/UI orchestration sequence that does not exist until Phase 5/6, exactly as tasks.md's own Key Learning number 5 already discloses ("the write-confirmation gate spans Phase 4/5/6") |
+
+**Compliance summary**: 3 of the 5 requirements (3 of 5 scenarios) claimed for this unit are fully end-to-end COMPLIANT under the strict rule that a scenario is compliant only when a covering test passed at runtime for the complete scenario text, not a sub-behavior of it. 1/5 is a documented negative-scope requirement with no positive test expected. 1/5 is genuinely PARTIAL (store-layer proven, API/UI orchestration deferred to later phases, honestly disclosed in tasks.md). This is a materially stronger showing than Work Units 2-3, because persistence's requirement text is written at the server/store layer directly (no UI wording), so this unit's tests close the gap almost completely rather than only proving a domain-layer prerequisite.
+
+---
+
+### TDD Compliance
+| Check | Result | Details |
+|-------|--------|---------|
+| TDD Evidence reported | Partial (same Engram gap as WU1-3) | No separate apply-progress artifact retrievable this session; tasks.md inline notes and state.yaml's work_unit_4_result block serve as the substitute self-report, cross-checked against source above |
+| All tasks have tests | Yes | 4/4 RED+GREEN-tagged tasks (4.3-4.6) share one dedicated test file (index.test.ts, 12 tests); 4.1/4.2/4.7 are implementation/documentation tasks with no dedicated RED+GREEN tag in tasks.md, consistent with the file's own tagging convention |
+| RED confirmed (tests exist) | Yes, and independently replayed | index.test.ts verified present and non-trivial on disk; RED state additionally reproduced live via git worktree at commit 7445d22 (see RED-State Replay above) - stronger evidence than Work Units 2-3, which could only argue plausibility |
+| GREEN confirmed (tests pass) | Yes | 12/12 store tests, 77/77 full suite, independently re-run in this session, exact match to claim |
+| Triangulation adequate | Yes | 12 cases across 4 describe blocks, each with genuine outcome variance (mismatch vs. expired vs. no-plan all produce distinct PlanConfirmationErrorKind values; round-trip vs. unknown-reference vs. overwrite all assert different observable states) |
+| Safety Net for modified files | Yes | Dockerfile is the only modified (not new) file in this unit's implementation diff; it was already exercised by Work Unit 1's cold no-cache Docker build reproduction before this change, and the change here is additive (one COPY line), non-breaking to that prior verification |
+
+**TDD Compliance**: 6/6 checks passed
+
+---
+
+### Test Layer Distribution
+| Layer | Tests | Files | Tools |
+|-------|-------|-------|-------|
+| Unit (pure functions, no I/O) | 37 | 10 | Vitest 3.2.7 (Phase 2 domain, unchanged this unit) |
+| Integration (real file I/O, no mocks - store layer) | 12 | 1 | Vitest 3.2.7 + real better-sqlite3 file-backed database in a temp directory (this unit) |
+| Integration (HTTP stub - MCP layer) | 6 | 1 | Vitest 3.2.7 (Phase 3, unchanged this unit) |
+| Unit (MCP config/validation) | 22 | 3 | Vitest 3.2.7 (Phase 3, unchanged this unit) |
+| E2E | 0 | 0 | not installed yet (Phase 7) |
+| Total | 77 | 15 | |
+
+Classification note: index.test.ts's 12 tests use a real temp-file-backed SQLite database (mkdtempSync) rather than mocks or an in-memory stub, so they are classified as integration-layer tests for the store module even though they exercise a single class, because they depend on real filesystem/SQLite I/O rather than isolated pure logic. This is a deliberate and justified departure from design.md's Testing Strategy table, which suggested :memory: SQLite for this layer (see SUGGESTION below) - :memory: mode would have made the Durable-Override-Writes test's "second independent connection to the same file" proof impossible without shared-cache URI tricks, so the real-file approach is the stronger, more honest choice for that specific scenario, not a shortcut.
+
+---
+
+### Changed File Coverage
+
+No coverage tool is installed (unchanged from Work Units 1-3, openspec/config.yaml sets coverage_threshold: 0). Coverage analysis skipped, no coverage tool detected (informational, not a failure).
+
+Manual inspection: every exported method of SqliteReviewStateStore (saveBatch, loadBatch, putOverride, savePlan, recordConfirmation, close) is exercised by at least one test; recordConfirmation's three error branches (no_plan/plan_id_mismatch/plan_expired) each have a dedicated test asserting the specific kind, not just "it throws." applyOverrides's field-not-found and non-overridable-field guard branches are not directly tested - see WARNING below.
+
+---
+
+### Assertion Quality
+
+Scanned index.test.ts (the only new test file in this unit) line-by-line for the banned patterns: tautologies, orphan empty-only checks, type-only-alone assertions, ghost loops over possibly-empty collections, smoke-test-only patterns, mock-heavy ratios.
+
+**Assertion quality**: All assertions verify real behavior. No tautologies. No mock calls at all - every test exercises a real SQLite file through better-sqlite3, including a second independently-opened connection used purely for verification in two tests (not mocked, a genuine cross-connection read). No ghost loops (no for/forEach over query results in this file). The toBeNull() check in the unknown-reference test is a specific value assertion, not a type-only check used alone. Every test block calls production code (saveBatch/loadBatch/putOverride/savePlan/recordConfirmation) and asserts a specific, varied expected value (exact override values, exact PlanConfirmationErrorKind, null vs. populated, awaiting_confirmation vs. confirmed).
+
+---
+
+### Quality Metrics
+
+Linter: not available, no lint script configured, unchanged from Work Units 1-3.
+Type Checker: tsc -p tsconfig.json --noEmit, independently re-run, clean, zero errors.
+
+---
+
+## Correctness (Static + Runtime Evidence)
+
+| Requirement | Status | Notes |
+|---|---|---|
+| ReviewStateStore port fidelity | Implemented, no drift | SqliteReviewStateStore implements every method with matching signatures; the only extra method (close()) is explicitly documented as "Not part of ReviewStateStore" and is a legitimate resource-cleanup escape hatch used only by tests (and eventually the API layer's shutdown path) |
+| WAL-mode connection, migrations at boot (design.md Decision 2) | Implemented | journal_mode = WAL pragma set in the constructor; runMigrations called synchronously in the constructor before any query runs |
+| Durable Override Writes | Implemented, tested cross-connection | See task 4.4 above |
+| planId/expiry assertion at the store layer (design.md sequence diagram) | Implemented, tested | recordConfirmation matches the design.md sequence line verbatim, confirmed by direct re-read |
+| Single-writer/single-user scope documentation | Implemented | In-code doc comment, matches spec wording closely |
+| Overrides re-applied on top of the saved batch (not mutating the saved row) | Implemented | loadBatch reads the raw batches.data JSON blob unchanged and applies overrides rows on top in applyOverrides, keeping saveBatch/loadBatch a pure snapshot round-trip independent of override history, as state.yaml's design_decisions_made_at_store_layer claims |
+
+---
+
+## Coherence (Design)
+
+| Decision | Followed? | Notes |
+|---|---|---|
+| design.md Decision 2 - embedded SQLite (WAL, better-sqlite3), numbered migrations applied at boot | Yes | Matches exactly; the sqlite3 .backup command from Decision 2 is not yet documented in a deploy README (that is task 8.3, correctly out of this unit's scope) |
+| design.md Interfaces/Contracts (ReviewStateStore) | Yes | Verbatim-equivalent, confirmed above |
+| design.md Write-Confirmation Gate sequence (assert planId matches and has not expired; record the confirmation attempt) | Yes | Both lines implemented literally in recordConfirmation, confirmed by direct re-read of design.md lines 94-98 against errors.ts/index.ts |
+| design.md Testing Strategy table (SQLite store layer suggested as :memory: SQLite integration test) | Partial, undisclosed but justified | Actual tests use a real temp-file-backed database, not :memory:. See SUGGESTION below - not a defect, arguably a stronger test, but not called out anywhere as an intentional deviation the way task 2.3's Pershing/UBS deviation was |
+
+---
+
+## Issues Found
+
+### CRITICAL
+None. All 7 tasks are genuinely implemented (no stubs), the store implements the ReviewStateStore port with zero drift, all claimed test/build/typecheck results were independently reproduced exactly (12/12 scoped, 77/77 full suite, clean typecheck, clean build), the diff-size claims (632/9 and 724/11) were independently reproduced to the exact line, PR #5 base/head refs are correct for the (evolved, merge-down) chain strategy, and zero AI/Claude attribution was found anywhere in commits or the PR body.
+
+### WARNING
+1. putOverride's field parameter is typed as a bare string (matching the ReviewStateStore port signature), and applyOverrides's guard silently drops any override row whose field is not one of the 8 known OVERRIDABLE_FIELDS on load, with no error surfaced anywhere. No test in index.test.ts exercises an invalid/unknown field value being written and then silently dropped on read. Not currently exploitable (no caller exists yet - Phase 5 has not been built), and the defensive guard is reasonable, but this edge case has zero test coverage and no CHECK constraint at the SQL layer either (migration 0002_create_overrides.sql has no such constraint). Worth adding a test and/or a validating wrapper before Phase 5 starts calling putOverride with values it does not fully control.
+2. design.md's own Testing Strategy table suggests :memory: SQLite for this layer's integration tests, but the actual implementation uses a real temp-directory file-backed database instead. This is not disclosed anywhere in tasks.md, state.yaml, or the PR body as an intentional deviation (unlike, e.g., task 2.3's explicitly-flagged Pershing/UBS placeholder). Independently judged to be the better engineering choice here - :memory: mode would make the Durable-Override-Writes test's "second independent connection proves durability" assertion effectively untestable without a shared-cache URI - but future readers of design.md alone would not know this choice was made deliberately.
+3. PR #5's base branch is feat/domain-rules, not feat/ports-mcp-client (Work Unit 3's own branch name), because PR #4 (Work Unit 3) was already merged into feat/domain-rules on GitHub before Work Unit 4's branch was cut. This is a legitimate "merge-down" variant of the declared feature-branch-chain strategy (each PR's diff is still correctly scoped to only that unit's new commits, independently confirmed above: 632/9 files), and state.yaml already discloses the reason (local feat/domain-rules was stale behind origin at session start, diffed/branched against origin instead). Not a defect, but the chain no longer follows the literal "each subsequent PR targets the immediate previous PR's branch name" description in state.yaml's chain_strategy field going forward - worth confirming this pattern (merge child branches down into a shared spine branch as they land, rather than always stacking on the previous unit's own branch name) is intentional before Work Unit 5 branches.
+
+### SUGGESTION
+1. Consider adding an explicit test for putOverride/applyOverrides with an unrecognized field value (see WARNING 1), even though nothing calls it with untrusted input yet.
+2. Consider adding a one-line note in tasks.md task 4.3/4.4 (or design.md's Testing Strategy table) documenting the deliberate :memory: to real-temp-file test-harness deviation and why (see WARNING 2), for consistency with how other intentional deviations in this change are disclosed.
+3. Consider documenting the deploy backup command (sqlite3 ... .backup, design.md Decision 2) sooner rather than deferring entirely to task 8.3, since the store/migration shape it depends on is now stable.
+
+---
+
+## Verdict
+
+**PASS WITH WARNINGS**
+
+Work Unit 4 (Phase 4 SQLite store, tasks 4.1-4.7) is genuinely and completely implemented: SqliteReviewStateStore implements the ReviewStateStore port with zero drift, all 7 tasks produce real, non-stub logic backed by a real file-backed SQLite database, and all claimed test (12/12 scoped, 77/77 full suite), typecheck, and build results were independently reproduced exactly. This unit clears a materially higher bar than Work Units 2-3 on two dimensions specifically called out as gaps in those reports: (1) its spec requirements are written at the server/persistence layer with no UI wording, so 3 of 5 in-scope persistence requirements are fully end-to-end COMPLIANT rather than merely domain-layer PARTIAL; and (2) its RED-then-GREEN commit pair (7445d22 test-only, 1a2d446 implementation) is genuinely bisectable and was independently replayed live in this session via a scratch git worktree, reproducing the exact claimed RED error (Cannot find module ./errors.js) - the first work unit in this change where TDD evidence was proven by direct reproduction rather than argued from plausibility. The diff-size claims (632 lines/9 files implementation-only, 724 lines/11 files including SDD docs) were both reproduced to the exact line. Zero AI/Claude attribution was found anywhere. Three non-blocking WARNINGs (an untested silent-drop edge case for invalid override field names; an undisclosed but justified test-harness deviation from design.md; a chain-strategy branch-basing variant that is correctly scoped but worth confirming intentional) keep this from a clean PASS, but none of them indicate a functional defect in the shipped code or block proceeding to Work Unit 5.
+
+What could not be verified in this environment: nothing material to the store's own behavior. The two PARTIAL/DOCUMENTED spec items (Single-User Scope, Two-Step Explicit Confirmation) are correctly and honestly scoped as store-layer-only in tasks.md itself, not silently over-claimed.
+
+---
+
+## Key Learnings
+
+1. git worktree add at a specific commit, with node_modules copied over rather than reinstalled, is an effective way to literally replay a claimed RED test-failure state without disturbing the main working tree - reproduced the exact claimed error text (Cannot find module ./errors.js).
+2. Work Unit 4's Phase-4 commits (7445d22 test-only, 1a2d446 implementation) are the first genuinely bisectable RED-then-GREEN pair in this change, unlike Work Units 2 and 3 where tests and implementation were committed together.
+3. specs/persistence/spec.md's requirement text names no UI/API behavior, so store-layer tests alone can close 3 of its 5 requirements to full end-to-end COMPLIANT, unlike the UI-dependent mcp-client/review-ui requirements scored PARTIAL in Work Units 2-3.
+4. Using a real temp-file-backed SQLite database instead of :memory: mode is necessary, not just convenient, for the Durable-Override-Writes test's "second independent connection" proof, since :memory: databases cannot be reopened by a separate connection without shared-cache URI tricks.
+5. putOverride's field parameter has no runtime or SQL-level validation against the 8 known overridable fields, so an invalid field is silently dropped on load with zero test coverage of that path.
+
+---
+
