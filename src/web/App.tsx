@@ -9,14 +9,15 @@
  */
 import { useState } from "react";
 
-import type { BatchAnalysis } from "../domain/types.js";
+import type { BatchAnalysis, CodeEntry } from "../domain/types.js";
 import type { WritePlan } from "../ports/ReviewStateStore.js";
 import { ApiError, fetchBatch, postWritePlan, putFieldOverride } from "./api/client.js";
 import { BatchTable } from "./components/BatchTable.js";
 import { EmptyState } from "./components/EmptyState.js";
 import { ErrorState } from "./components/ErrorState.js";
+import type { FaAlternativeOption, FaTipo } from "./components/FaEditor.js";
 import { Filters, type Density } from "./components/Filters.js";
-import type { DrawerAlternative, DrawerDetail } from "./components/FieldDrawer.js";
+import type { DrawerAlternative, DrawerDetail, FaFieldDetail } from "./components/FieldDrawer.js";
 import { FieldDrawer } from "./components/FieldDrawer.js";
 import { Footer } from "./components/Footer.js";
 import { Header } from "./components/Header.js";
@@ -37,6 +38,16 @@ function isBatchFullyResolved(batch: BatchAnalysis): boolean {
   });
 }
 
+function buildFaDrawerDetail(code: CodeEntry): FaFieldDetail {
+  const primaryFa = code.fa[0];
+  return {
+    kind: "fa",
+    label: "FA",
+    alternatives: primaryFa?.alternatives ?? [],
+    discarded: code.faDiscarded ?? [],
+  };
+}
+
 export function App() {
   const [batchIdInput, setBatchIdInput] = useState("");
   const [batchId, setBatchId] = useState<string | null>(null);
@@ -52,6 +63,9 @@ export function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerDetail, setDrawerDetail] = useState<DrawerDetail | null>(null);
   const [drawerContext, setDrawerContext] = useState<{ codeId: string; field: string } | null>(null);
+
+  const [overriddenFields, setOverriddenFields] = useState<Set<string>>(new Set());
+  const [originalFieldValues, setOriginalFieldValues] = useState<Record<string, string>>({});
 
   const [view, setView] = useState<View>("table");
   const [plan, setPlan] = useState<WritePlan | null>(null);
@@ -84,13 +98,7 @@ export function App() {
     setDrawerContext({ codeId, field });
 
     if (field === "fa") {
-      const primaryFa = code.fa[0];
-      setDrawerDetail({
-        kind: "fa",
-        label: "FA",
-        alternatives: primaryFa?.alternatives ?? [],
-        discarded: code.faDiscarded ?? [],
-      });
+      setDrawerDetail(buildFaDrawerDetail(code));
     } else {
       const key = field as FieldName;
       const fieldValue = code.fields[key];
@@ -100,8 +108,10 @@ export function App() {
         label: FIELD_LABELS[key] ?? field,
         value: fieldValue.value,
         status: fieldValue.status,
+        isOverride: overriddenFields.has(`${codeId}:${field}`),
         ...(fieldValue.evidence !== undefined ? { evidence: fieldValue.evidence } : {}),
         ...(fieldValue.alternatives !== undefined ? { alternatives: fieldValue.alternatives } : {}),
+        ...(code.references !== undefined ? { references: code.references } : {}),
       });
     }
     setDrawerOpen(true);
@@ -120,6 +130,48 @@ export function App() {
       return;
     }
     await putFieldOverride(batchId, codeId, field, { value: alt.label });
+    const overrideKey = `${codeId}:${field}`;
+    const key = field as FieldName;
+    const code = batch.codes.find((c) => c.id === codeId);
+    if (code && !(overrideKey in originalFieldValues)) {
+      const originalValue = code.fields[key].value;
+      setOriginalFieldValues((prev) => ({ ...prev, [overrideKey]: originalValue }));
+    }
+    setOverriddenFields((prev) => new Set(prev).add(overrideKey));
+    setBatch((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      return {
+        ...prev,
+        codes: prev.codes.map((c) => {
+          if (c.id !== codeId) {
+            return c;
+          }
+          return {
+            ...c,
+            fields: {
+              ...c.fields,
+              [key]: { ...c.fields[key], value: alt.label, status: "resolved" as const },
+            },
+          };
+        }),
+      };
+    });
+    setDrawerOpen(false);
+  }
+
+  function restoreField() {
+    if (!drawerContext) {
+      return;
+    }
+    const { codeId, field } = drawerContext;
+    const overrideKey = `${codeId}:${field}`;
+    const original = originalFieldValues[overrideKey];
+    if (original === undefined) {
+      return;
+    }
+    const key = field as FieldName;
     setBatch((prev) => {
       if (!prev) {
         return prev;
@@ -130,18 +182,134 @@ export function App() {
           if (code.id !== codeId) {
             return code;
           }
-          const key = field as FieldName;
           return {
             ...code,
             fields: {
               ...code.fields,
-              [key]: { ...code.fields[key], value: alt.label, status: "resolved" as const },
+              [key]: { ...code.fields[key], value: original, status: "resolved" as const },
+            },
+          };
+        }),
+      };
+    });
+    setOverriddenFields((prev) => {
+      const next = new Set(prev);
+      next.delete(overrideKey);
+      return next;
+    });
+    setDrawerOpen(false);
+  }
+
+  function markFieldForReview() {
+    if (!drawerContext) {
+      return;
+    }
+    const { codeId, field } = drawerContext;
+    const key = field as FieldName;
+    setBatch((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      return {
+        ...prev,
+        codes: prev.codes.map((code) => {
+          if (code.id !== codeId) {
+            return code;
+          }
+          return {
+            ...code,
+            fields: {
+              ...code.fields,
+              [key]: { ...code.fields[key], status: "needs_confirm" as const },
             },
           };
         }),
       };
     });
     setDrawerOpen(false);
+  }
+
+  function updateCodeFa(codeId: string, updater: (code: CodeEntry) => CodeEntry) {
+    if (!batch) {
+      return;
+    }
+    const code = batch.codes.find((c) => c.id === codeId);
+    if (!code) {
+      return;
+    }
+    const updatedCode = updater(code);
+    setBatch({
+      ...batch,
+      codes: batch.codes.map((c) => (c.id === codeId ? updatedCode : c)),
+    });
+    return updatedCode;
+  }
+
+  function selectFaAlternative(alt: FaAlternativeOption) {
+    if (!drawerContext) {
+      return;
+    }
+    updateCodeFa(drawerContext.codeId, (code) => ({
+      ...code,
+      fa: [{ id: alt.faId, name: alt.faName, state: "existente" as const, status: "resolved" as const }],
+    }));
+    setDrawerOpen(false);
+  }
+
+  function selectExistingFa(faId: number) {
+    if (!drawerContext) {
+      return;
+    }
+    updateCodeFa(drawerContext.codeId, (code) => ({
+      ...code,
+      fa: [{ id: faId, name: `FA #${faId}`, state: "existente" as const, status: "resolved" as const }],
+    }));
+    setDrawerOpen(false);
+  }
+
+  function createNewFa(name: string, tipo: FaTipo) {
+    if (!drawerContext) {
+      return;
+    }
+    updateCodeFa(drawerContext.codeId, (code) => ({
+      ...code,
+      fa: [
+        {
+          id: -Date.now(),
+          name,
+          tipo,
+          state: "nuevo" as const,
+          status: "resolved" as const,
+        },
+      ],
+    }));
+    setDrawerOpen(false);
+  }
+
+  function reactivateDiscardedFa(id: number) {
+    if (!drawerContext) {
+      return;
+    }
+    const updatedCode = updateCodeFa(drawerContext.codeId, (code) => {
+      const discardedItem = (code.faDiscarded ?? []).find((d) => d.id === id);
+      if (!discardedItem) {
+        return code;
+      }
+      const remainingDiscarded = (code.faDiscarded ?? []).filter((d) => d.id !== id);
+      const newAlternative: FaAlternativeOption = {
+        label: discardedItem.name,
+        faId: discardedItem.id,
+        faName: discardedItem.name,
+      };
+      const primaryFa = code.fa[0];
+      const updatedFa = primaryFa
+        ? [{ ...primaryFa, alternatives: [...(primaryFa.alternatives ?? []), newAlternative] }, ...code.fa.slice(1)]
+        : code.fa;
+      return { ...code, fa: updatedFa, faDiscarded: remainingDiscarded };
+    });
+    if (updatedCode) {
+      setDrawerDetail(buildFaDrawerDetail(updatedCode));
+    }
   }
 
   async function handlePrepararAlta() {
@@ -242,6 +410,12 @@ export function App() {
           onClose={closeDrawer}
           onAcceptAlternative={applyFieldOverride}
           onCatalogSelect={applyFieldOverride}
+          onMarkForReview={markFieldForReview}
+          onRestore={restoreField}
+          onSelectFaAlternative={selectFaAlternative}
+          onSelectExistingFa={selectExistingFa}
+          onCreateNewFa={createNewFa}
+          onReactivateDiscardedFa={reactivateDiscardedFa}
         />
       </main>
       <Footer />

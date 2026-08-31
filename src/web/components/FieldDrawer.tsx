@@ -15,7 +15,16 @@ import {
   type FaDiscardedOption,
   type FaTipo,
 } from "./FaEditor.js";
+import { OverrideMarker } from "./OverrideMarker.js";
 import { StatusBadge } from "./StatusBadge.js";
+
+export interface DrawerReference {
+  title: string;
+  description: string;
+  columns: string[];
+  rows: Record<string, unknown>[];
+  footnote?: string | undefined;
+}
 
 // `| undefined` on every optional field below matches zod's
 // `.optional()`-inferred shape under exactOptionalPropertyTypes, so these
@@ -35,6 +44,7 @@ export interface NonFaFieldDetail {
   evidence?: string | undefined;
   alternatives?: DrawerAlternative[] | undefined;
   isOverride?: boolean | undefined;
+  references?: DrawerReference[] | undefined;
 }
 
 export interface FaFieldDetail {
@@ -181,10 +191,48 @@ function NonFaFieldPanel({
         </p>
       )}
 
-      {detail.isOverride && onRestore && (
-        <button type="button" onClick={onRestore}>
-          Restaurar sugerencia
-        </button>
+      {onRestore && <OverrideMarker isOverride={detail.isOverride ?? false} onRestore={onRestore} />}
+
+      {detail.references && detail.references.length > 0 && (
+        <section aria-label="Códigos precedentes" style={{ marginTop: "var(--space-2)" }}>
+          <p style={{ font: "var(--font-body-2)", fontWeight: 600 }}>Códigos precedentes</p>
+          {detail.references.map((ref) => (
+            <div key={ref.title} style={{ marginBottom: "var(--space-2)" }}>
+              <p style={{ font: "var(--font-body-2)", fontWeight: 600 }}>{ref.title}</p>
+              <p style={{ font: "var(--font-body-2)", color: "var(--color-gray-600)" }}>
+                {ref.description}
+              </p>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    {ref.columns.map((col) => (
+                      <th key={col} style={{ textAlign: "left", font: "var(--font-caption)" }}>
+                        {col}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {ref.rows.map((row, rowIndex) => (
+                    // eslint-disable-next-line react/no-array-index-key
+                    <tr key={rowIndex}>
+                      {ref.columns.map((col) => (
+                        <td key={col} style={{ font: "var(--font-body-2)" }}>
+                          {String(row[col] ?? "")}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {ref.footnote && (
+                <p style={{ font: "var(--font-caption)", color: "var(--color-gray-500)" }}>
+                  {ref.footnote}
+                </p>
+              )}
+            </div>
+          ))}
+        </section>
       )}
 
       <div style={{ marginTop: "var(--space-2)" }}>
