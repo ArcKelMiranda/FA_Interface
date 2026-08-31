@@ -18,7 +18,8 @@ dependency_graph:
   verify: work_unit_1_PASS, work_unit_2_PASS_WITH_WARNINGS, work_unit_3_PASS_WITH_WARNINGS
   archive: pending
 next_recommended: sdd-apply for work unit 4 (Phase 4, SQLite store), branching
-  from feat/ports-mcp-client once PR #4 merges
+  from feat/ports-mcp-client (PR #4 merged into feat/domain-rules at
+  1a521a7e4656e830f705a84f5895c61193c1b4bf on 2026-08-31)
 remote_repo: https://github.com/ArcKelMiranda/FA_Interface.git
 git_local: initialized, remote "origin" added, no commits yet
 chain_strategy: feature-branch-chain
