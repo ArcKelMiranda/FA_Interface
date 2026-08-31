@@ -17,9 +17,13 @@ import {
 } from "./FaEditor.js";
 import { StatusBadge } from "./StatusBadge.js";
 
+// `| undefined` on every optional field below matches zod's
+// `.optional()`-inferred shape under exactOptionalPropertyTypes, so these
+// types accept BatchAnalysis field/alternative data (src/domain/types.ts)
+// directly without a normalization step.
 export interface DrawerAlternative {
   label: string;
-  hint?: string;
+  hint?: string | undefined;
 }
 
 export interface NonFaFieldDetail {
@@ -28,9 +32,9 @@ export interface NonFaFieldDetail {
   label: string;
   value: string;
   status: FieldStatus;
-  evidence?: string;
-  alternatives?: DrawerAlternative[];
-  isOverride?: boolean;
+  evidence?: string | undefined;
+  alternatives?: DrawerAlternative[] | undefined;
+  isOverride?: boolean | undefined;
 }
 
 export interface FaFieldDetail {
@@ -156,10 +160,11 @@ function NonFaFieldPanel({
   onQueryChange: (q: string) => void;
   onAcceptAlternative: (alt: DrawerAlternative) => void;
   onCatalogSelect: (alt: DrawerAlternative) => void;
-  onMarkForReview?: () => void;
-  onRestore?: () => void;
+  onMarkForReview?: (() => void) | undefined;
+  onRestore?: (() => void) | undefined;
 }) {
   const alternatives = detail.alternatives ?? [];
+  const firstAlternative = alternatives[0];
   const filtered = query.trim()
     ? alternatives.filter((alt) => alt.label.toLowerCase().includes(query.trim().toLowerCase()))
     : alternatives;
@@ -208,10 +213,10 @@ function NonFaFieldPanel({
       </ul>
 
       <div style={{ display: "flex", gap: "var(--space-1)" }}>
-        {alternatives[0] && (
+        {firstAlternative && (
           <button
             type="button"
-            onClick={() => onAcceptAlternative(alternatives[0])}
+            onClick={() => onAcceptAlternative(firstAlternative)}
             style={{
               background: "var(--color-primary-1-600)",
               color: "var(--color-white)",
