@@ -14,18 +14,12 @@ dependency_graph:
   specs: done
   design: done
   tasks: done
-  apply: work_unit_5a_of_8_done
+  apply: work_unit_5_of_8_done
   verify: work_unit_1_PASS, work_unit_2_PASS_WITH_WARNINGS, work_unit_3_PASS_WITH_WARNINGS,
-    work_unit_4_PASS_WITH_WARNINGS
+    work_unit_4_PASS_WITH_WARNINGS, work_unit_5_PASS_WITH_WARNINGS
   archive: pending
-next_recommended: 'Work unit 5 (Phase 5, API layer) was implemented in full by
-  sdd-apply (100/100 tests) but its diff (880 lines src/api/-only, 1014 with
-  SDD docs) exceeded the 800-line review_budget_lines. User chose to split
-  into two PRs rather than grant size:exception. Split 5a (tasks 5.1-5.2,
-  batches.ts) is on branch feat/api-batches (off feat/sqlite-store), PR
-  pending. Split 5b (tasks 5.3-5.7, write.ts+config.ts+app.ts) will branch
-  off feat/api-batches once its PR opens. Once both are pushed/PR''d:
-  sdd-verify for work unit 5 (both splits).'
+next_recommended: sdd-apply for work unit 6 (Phase 6, Web SPA) -- work unit 5
+  (Phase 5 API layer, PR #6 + PR #7) verified PASS WITH WARNINGS
 remote_repo: https://github.com/ArcKelMiranda/FA_Interface.git
 git_local: initialized, remote "origin" added, no commits yet
 chain_strategy: feature-branch-chain
@@ -438,3 +432,86 @@ work_unit_5a_result:
     then GREEN (84d151a), preserved as originally committed
   ai_attribution_scan: clean (verified on the original feat/api-layer
     branch before cherry-pick; commits carried over byte-identical)
+  pr_unit_5a: https://github.com/ArcKelMiranda/FA_Interface/pull/6
+    (feat/api-batches to feat/sqlite-store)
+work_unit_5b_result:
+  status: done
+  scope: Phase 5 API layer split B, tasks 5.3-5.7 (write-plan/write-commit
+    two-step confirmation gate, WRITE_TOOLS_ENABLED wiring)
+  branch: feat/api-write-config (pushed to origin, off feat/api-batches)
+  commits: 4 work-unit-shaped commits cherry-picked unmodified from the
+    original single-unit implementation (bf05af9/7451ae2 write-plan+commit
+    RED+GREEN, c97520c/6673adc config+app RED+GREEN) plus one docs commit
+    marking 5.3-5.7 [x] in tasks.md
+  tests: 15 new tests (10 write.test.ts, 2 config.test.ts, 3 app.test.ts) --
+    22/22 for the full split-B+split-A src/api suite reproduced green on
+    this branch before push
+  tdd_mode: strict TDD, RED (bf05af9/c97520c, "Cannot find module" errors)
+    then GREEN (7451ae2/6673adc), preserved as originally committed
+  ai_attribution_scan: clean (verified on the original feat/api-layer
+    branch before cherry-pick; commits carried over byte-identical)
+work_unit_5_result:
+  status: done
+  summary: Phase 5 API layer (tasks 5.1-5.7) delivered as two chained PRs
+    after the single-unit diff (880 lines src/api/-only, 1014 with SDD
+    docs) exceeded the 800-line review_budget_lines -- user chose a 2-PR
+    split over size:exception. Both splits share the identical
+    implementation/test commits originally produced by one sdd-apply run
+    (feat/api-layer, superseded/abandoned as a local-only branch, never
+    pushed) -- splitting was pure git surgery (cherry-pick), not a
+    re-implementation.
+  pr_unit_5a: https://github.com/ArcKelMiranda/FA_Interface/pull/6
+    (feat/api-batches to feat/sqlite-store) -- tasks 5.1-5.2, 304 changed
+    lines, 7 tests
+  pr_unit_5b: https://github.com/ArcKelMiranda/FA_Interface/pull/7
+    (feat/api-write-config to feat/api-batches) -- tasks 5.3-5.7, pending
+    exact line count at PR creation, 15 tests
+  tests: 22 new tests total (78 baseline -> 100 after Phase 5), typecheck
+    clean, build clean
+  deviations:
+    - GET /api/batches/:id serves the store's persisted BatchAnalysis
+      snapshot, not a freshly-resolved one -- no live-resolver orchestrator
+      exists yet wiring Phase 2's dedupe/fa-propagation/parsing/
+      catalog-resolution building blocks together from raw MCP rows
+      (pre-existing gap, flagged since work unit 2's verify)
+    - buildLocalWritePlan (local write-plan preview builder for
+      WRITE_TOOLS_ENABLED=false) lives in src/api/routes/write.ts rather
+      than src/domain/, to stay inside Phase 5's design.md File Changes
+      scope; intentionally minimal, not full production-parity SQL preview
+      generation
+    - WriteToolClient is a new API-layer-local interface (not in src/mcp/)
+      -- no concrete MCP-write implementation exists since yhat-mcp-server
+      has no write tools yet (blocked task 8.4, cross-project dependency)
+    - src/index.ts real server boot (wiring buildApp to a real
+      YhatMcpClient/SqliteReviewStateStore/app.listen) was not touched --
+      not in scope for tasks 5.1-5.7, left as an explicit Phase 6/8
+      follow-up
+  ai_attribution_scan: clean across all 6 implementation commits plus both
+    docs commits, both PR bodies
+work_unit_5_verify_result:
+  status: PASS_WITH_WARNINGS
+  verdict: pass_with_warnings
+  critical_findings: 0
+  warnings:
+    - RESOLVED (post-verify fix, pushed to feat/api-write-config, updates
+      PR #7 in place): isFullyResolved()'s FA check used
+      code.fa.every(...), vacuously true for an empty fa array -- a code
+      with zero FA candidates trivially passed the write-plan
+      fully-resolved gate. Fixed by requiring code.fa.length > 0 as well.
+      RED test added first (write.test.ts: "returns 409 when a code has
+      zero FA candidates, not vacuously resolved"), confirmed failing
+      (200 instead of 409), then fixed. The fix also exposed a second,
+      independent instance of the same masked bug: app.test.ts's own
+      "resolved" batch fixture had fa:[] and was silently relying on the
+      vacuous-true behavior to pass task 5.7's WRITE_TOOLS_ENABLED
+      propagation test -- fixed the fixture to include a real resolved FA
+      entry, matching write.test.ts's pattern. Full suite 101/101 after
+      both fixes (up from 100/100), typecheck/build clean.
+    - documentation-only note (not a defect): verify's AI-attribution scan
+      covered SDD-tracking commits via the aggregate grep rather than
+      itemizing them separately -- no action needed
+  spec_compliance: 4/5 in-scope requirements PARTIAL with real passing
+    API-layer evidence (UI rendering deferred to Phase 6); 1/5
+    (color-independent disabled-state) is 100% UI scope, correctly
+    untested here. Strict envelope reports 0/0 per the Work Unit 2/3
+    convention (only fully end-to-end compliant scenarios count)

@@ -695,3 +695,232 @@ What could not be verified in this environment: nothing material to the store's 
 
 ---
 
+
+```yaml
+schema: gentle-ai.verify-result/v1
+evidence_revision: sha256:7bb8986245d3f24476033bbcbd4e433e993cc5f175b17db53ad905f26c093f14
+verdict: pass_with_warnings
+blockers: 0
+critical_findings: 0
+requirements: 0/0
+scenarios: 0/0
+test_command: npm test
+test_exit_code: 0
+test_output_hash: sha256:58ef2f046eddadb4c523acb66f90690a739662f69997c05930200d9c18efded8
+build_command: npm run build
+build_exit_code: 0
+build_output_hash: sha256:049a6fbfc499b22ce7c46d96b15e866b108be525d2eb3afe436880a982f36a80
+```
+
+
+# Verification Report: direct-db-integration - Work Unit 5 (Phase 5, API Layer)
+
+**Change**: direct-db-integration
+**Scope**: Work Unit 5 ONLY - Phase 5 (API Layer), tasks 5.1-5.7, delivered as TWO chained PRs against one original `sdd-apply` diff (split after the single-branch diff exceeded the 800-line review budget; user chose split over `size:exception`)
+**Branches / PRs**:
+- PR #6 `feat/api-batches` (base `feat/sqlite-store`) - tasks 5.1-5.2 (`src/api/routes/batches.ts`)
+- PR #7 `feat/api-write-config` (base `feat/api-batches`) - tasks 5.3-5.7 (`src/api/routes/write.ts`, `src/api/config.ts`, `src/api/app.ts`)
+- Combined tip for verification: `feat/api-write-config` (contains both splits' code)
+**Mode**: Strict TDD
+**Envelope note**: the strict machine-readable envelope below reports requirements 0/0 and scenarios 0/0, following the Work Unit 2 convention: every review-ui/write-confirmation requirement touched by this unit's task annotations (Batch Load Failure Blocks Rendering; Full Write Preview Rendering; Commit Action Disabled Until Upstream Write Tools Exist; Two-Step Explicit Confirmation) names UI-rendering behavior in its own scenario text ("displays", "rendered", "renders its response"), so none is fully end-to-end COMPLIANT at Phase 5 (API-only) scope, matching the honest scoring convention already used for review-ui/mcp-client in Work Units 2-3 (as opposed to Work Unit 4's persistence requirements, whose text has zero UI wording and could be scored 3/3). The full informational matrix (4 requirements / 5 scenarios in scope, all genuinely PARTIAL with real API-layer evidence) is in the Spec Compliance Matrix section below.
+**apply-progress artifact**: not retrievable via Engram this session - no `mem_*` tools were present in this agent's tool inventory, the same recurring gap logged for every prior apply/verify session on this change (see `engram_tooling_gap` entries in `state.yaml`). Verification below is based on independent reproduction only: actual repository files, `git log`/`git show` at commit granularity (including a `git worktree` checkout of a pre-implementation commit to literally re-run a claimed RED failure), `tasks.md` inline notes, `gh pr view 6`/`gh pr view 7`, and live command execution - not on any apply-phase self-report text.
+
+---
+
+## Reproduction Summary (independently re-run in this environment)
+
+| Check | Command | Result |
+|---|---|---|
+| Working tree / branch | `git status`, `git branch -a` | On `feat/api-write-config`, up to date with `origin/feat/api-write-config`, working tree clean |
+| Dependency install | `npm install` | Up to date, 284 packages audited, 0 vulnerabilities |
+| API-scoped test suite | `npm test -- src/api` | 4 files, 22/22 passed - matches claim exactly (7 batches + 10 write + 2 config + 3 app) |
+| Full test suite | `npm test` | 19 files, 100/100 passed - matches claim exactly |
+| Type check | `npm run typecheck` | Clean, no errors |
+| Build | `npm run build` | tsc clean + vite build succeeds (`dist/web/index.html`, `dist/web/assets/*`) |
+| Split A diff size | `git diff --numstat feat/sqlite-store...feat/api-batches` | 4 files: `batches.ts` (+99), `batches.test.ts` (+173), `state.yaml` (+30/-4), `tasks.md` (+2/-2) = 304 additions / 6 deletions, exact match to PR #6's reported `additions:304, deletions:6, changedFiles:4` |
+| Split B diff size | `git diff --numstat feat/api-batches...feat/api-write-config` | 8 files: `app.ts`(+41), `app.test.ts`(+107), `config.ts`(+20), `config.test.ts`(+17), `write.ts`(+192), `write.test.ts`(+231), `state.yaml`(+59/-9), `tasks.md`(+5/-5) = 672 additions / 14 deletions, exact match to PR #7's reported `additions:672, deletions:14, changedFiles:8` |
+| PR #6 metadata | `gh pr view 6 --json state,baseRefName,headRefName` | OPEN, `feat/sqlite-store` -> `feat/api-batches` |
+| PR #7 metadata | `gh pr view 7 --json state,baseRefName,headRefName` | OPEN, `feat/api-batches` -> `feat/api-write-config` - correctly targets PR #6's own branch (chained-PR structure, not `feat/sqlite-store` directly), as designed |
+| RED-state replay (new, see below) | `git worktree add` at commit `c4ee05c`, `npx vitest run src/api` inside it | Confirmed genuine RED: `Cannot find module './batches.js'` |
+| Commit message AI-attribution scan | `git log feat/sqlite-store..feat/api-write-config` full body, case-insensitive `claude\|anthropic\|co-authored\|generated with\|ai-generated\|session` | Zero matches |
+| PR body AI-attribution scan | `gh pr view 6 --json body`, `gh pr view 7 --json body`, same pattern | Zero matches |
+| Commit author identity | `git log --format="%H %s" feat/sqlite-store..feat/api-write-config` + `git show` per commit | All 6 implementation/test commits authored by `Kelvin Miranda <kelvin.miranda@aracaristudios.com>`, no AI co-author trailer |
+| Cleanup | `git worktree remove ../facodes-wu5-red --force` | Worktree removed; repo left on `feat/api-write-config`, clean |
+
+---
+
+## Task-by-Task Verification
+
+| Task | Claimed | Verified | Notes |
+|---|---|---|---|
+| 5.1 `src/api/routes/batches.ts` - GET/PUT wired to `YhatReadPort` + `ReviewStateStore` | [x] with NOTE/DEVIATION | Confirmed | `GET /api/batches/:batchId` calls `deps.readPort.queryEntities({entity:"Codes", filters:[BatchNo=id]})` inside a `try` block BEFORE any call to `deps.store.loadBatch`; on a caught error it returns immediately (502) without ever reaching the `store.loadBatch` line. `PUT /api/batches/:batchId/codes/:codeId/fields/:field` validates the body with `overrideBodySchema` (`z.object({value: z.string(), valueId: z.number().optional()})`) then calls `store.putOverride`, mapping `InvalidOverrideFieldError` to 400. The DEVIATION note (no live-resolver orchestration exists yet, so `GET` serves the store's persisted snapshot rather than a freshly-resolved one) is accurate - confirmed no orchestrator function exists anywhere in `src/api/` or `src/domain/` that builds a fresh `BatchAnalysis` from raw MCP rows; this is honestly disclosed, not glossed over. |
+| 5.2 RED+GREEN: blocking error on MCP failure, never partial row set (spec review-ui - Batch Load Failure Blocks Rendering) | [x] with RESOLVED note | Confirmed, genuinely tested at the exact claimed level | `batches.test.ts`'s "never reads or returns cached/persisted row data once the live read has failed" test asserts `expect(store.loadBatch).not.toHaveBeenCalled()` directly - not merely that the response is 502. Read the route source to confirm this is structurally guaranteed, not just true for this test's mock ordering: the `store.loadBatch` call is lexically after the `try/catch` block that returns early on failure, so there is no code path where a failing read reaches the store. |
+| 5.3 `src/api/routes/write.ts` - `POST /api/batches/:id/write-plan` | [x] with NOTE | Confirmed | Route loads the batch, returns 404 if absent, calls `isFullyResolved(batch)` and returns `409 batch_not_fully_resolved` if not, otherwise builds a plan (via `WriteToolClient.planWrite` when the flag is true, or `buildLocalWritePlan` when false) and persists it via `store.savePlan` with `status: awaiting_confirmation`. |
+| 5.4 RED+GREEN: write-plan calls MCP `yhat_write_codes {mode:"plan"}` only when `WRITE_TOOLS_ENABLED=true`; persists plan as `awaiting_confirmation` (spec write-confirmation - Full Write Preview Rendering) | [x] with NOTE/DEVIATION | Confirmed, both branches genuinely exercised | `write.test.ts` asserts `writeClient.planWrite` is called exactly once when `writeToolsEnabled: true`, and asserts `writeClient.planWrite` is `not.toHaveBeenCalled()` when `writeToolsEnabled: false` while still asserting `store.savePlan` is called with `status: "awaiting_confirmation"` and `savedPlan.statements.length` > 0 - genuinely proving the local-builder path produces real content, not an empty stub. The disclosed DEVIATION (`buildLocalWritePlan` lives in `write.ts`, not `src/domain/`, to stay inside design.md's Phase-5 File Changes scope) is accurate - confirmed `src/domain/` was not modified by either PR's diff (`git diff --numstat` above shows zero `src/domain/*` entries). |
+| 5.5 RED+GREEN: `POST /api/batches/:id/write-commit` asserts `planId` match/non-expiry, accepts no statements, returns `501` while flag is false (spec write-confirmation - Commit Action Disabled / Two-Step Explicit Confirmation) | [x] with RESOLVED note | Confirmed, precisely as claimed | The commit body schema is `z.object({planId: z.string()}).strict()` (`.strict()` literally present in `write.ts`, not merely an object schema) - the dedicated test "accepts no statements in the commit body - a body carrying statements is rejected as invalid" sends `{planId, statements:[...]}` and asserts `400` plus `store.recordConfirmation` never called, proving `.strict()` (not `.object()`'s default key-stripping) is what rejects the extra key. `PlanConfirmationError` kind-to-status mapping (`no_plan`->404, `plan_id_mismatch`->409, `plan_expired`->410) is implemented in `planConfirmationErrorStatus` and each of the three kinds has a dedicated passing test. While the flag is false, the route always answers `501 write_tools_unavailable` with the exact Spanish copy from design.md's sequence diagram, confirmed by a direct string comparison against design.md. |
+| 5.6 RED+GREEN: reject any single request path that both plans and commits in one call (spec write-confirmation invariant, sequence diagram) | [x] with RESOLVED note | Confirmed, both proof paths are genuine | (1) `write-commit` for a batch with no persisted plan maps the store's `no_plan` error to 404 (test asserts `response.statusCode === 404` and the JSON body's `error` field equals `no_plan`) - there is no code path where `write-commit` silently calls `store.savePlan` or otherwise fabricates a plan first. (2) The dedicated invariant test "write-plan alone never confirms the plan or invokes a commit call" calls only `POST .../write-plan` with `writeToolsEnabled: true` and a `writeClient` whose `commitWrite` is a spy, then asserts BOTH `store.recordConfirmation` and `writeClient.commitWrite` were never called - a genuine negative assertion against the actual write-plan route, not an assumption from the response shape. Read `write.ts`'s `write-plan` handler line-by-line: it never references `recordConfirmation` or `commitWrite` anywhere in its body, confirming the test's assertion is structurally guaranteed, not incidental. |
+| 5.7 Wire `WRITE_TOOLS_ENABLED` through Fastify config/plugin registration | [x] with RESOLVED note, RISK/NOTE on `src/index.ts` | Confirmed | `src/api/config.ts`'s `resolveApiConfig` does `env.WRITE_TOOLS_ENABLED === "true"` - a literal `===` string comparison against the exact literal `"true"`, not a truthy/Boolean coercion (`Boolean("false")` would be `true` under coercion; this implementation correctly returns `false` for `"false"`). `config.test.ts` explicitly tests four values: unset (false), `"true"` (true), `"TRUE"` (false - catches case-sensitivity), `"1"` (false - catches non-boolean-string truthy coercion), `"false"` (false). `src/api/app.ts`'s `buildApp` composes `registerBatchesRoutes` + `registerWriteRoutes`, defaulting `config` to `resolveApiConfig()` when not injected. The RISK/NOTE (`src/index.ts` still the Phase-1 placeholder, not wired to `buildApp`/a real `app.listen()`) is confirmed accurate by direct read of `src/index.ts` - it is still the single `console.log` scaffold stub from Work Unit 1, unchanged by this unit. Honestly disclosed as an explicit follow-up, not silently claimed as done. |
+
+---
+
+## RED-State Replay (independently reproduced, not merely trusted from the self-report)
+
+All three implementation tasks in this unit (5.2/5.4-5.6 collectively, 5.7) land as cleanly split test-only-then-implementation commit pairs, continuing the pattern Work Unit 4 first established:
+
+- `c4ee05c` `test(api): add failing tests for batches GET/PUT routes` (173 insertions, `batches.test.ts` only) -> `27e5edd` `feat(api): implement batches GET/PUT routes...` (99 insertions, `batches.ts` only)
+- `bf05af9` `test(api): add failing tests for write-plan/write-commit routes` (231 insertions, `write.test.ts` only) -> `7451ae2` `feat(api): implement write-plan/write-commit two-step confirmation gate` (192 insertions, `write.ts` only)
+- `c97520c` `test(api): add failing tests for WRITE_TOOLS_ENABLED config wiring` (124 insertions, `app.test.ts` + `config.test.ts` only) -> `6673adc` `feat(api): wire WRITE_TOOLS_ENABLED through Fastify app factory` (61 insertions, `app.ts` + `config.ts` only)
+
+`git show <test-commit>:<implementation-file>` returns `fatal: path exists on disk, but not in <commit>` for all three pairs (`batches.ts` at `c4ee05c`, `write.ts` at `bf05af9`, `config.ts`/`app.ts` at `c97520c`) - each test-only commit genuinely predates its implementation file, cryptographically provable from the object store, not merely plausible.
+
+Went one step further and literally replayed the RED state: `git worktree add ../facodes-wu5-red c4ee05c`, copied `node_modules` over (native `better-sqlite3` build reused, avoiding an unrelated toolchain rebuild), then `npx vitest run src/api` inside that worktree fails with:
+
+```
+Error: Cannot find module './batches.js' imported from '.../src/api/routes/batches.test.ts'
+```
+
+- the exact expected RED failure (the test file imports `registerBatchesRoutes` from a module that does not exist yet at that commit). Worktree removed after the replay; the main working tree was left untouched and clean on `feat/api-write-config` throughout.
+
+**Verdict**: this is a genuinely bisectable, independently-buildable RED-then-GREEN history for all three task groups in this unit - the second work unit in this change (after Work Unit 4) where TDD evidence was proven by direct reproduction rather than argued from plausibility.
+
+---
+
+## Ports/Errors Drift Check (cross-cutting, per task brief item 4)
+
+Read `src/ports/YhatReadPort.ts`, `src/ports/ReviewStateStore.ts`, `src/store/sqlite/index.ts`, and `src/store/sqlite/errors.ts` directly against `batches.ts`/`write.ts`'s actual usage:
+
+- `YhatReadPort.queryEntities(query: EntityQuery): Promise<Record<string, unknown>[]>` - `batches.ts` calls it with a literal `{entity, filters}` object matching `EntityQuery`'s shape exactly; no drift.
+- `ReviewStateStore` - both routes call only methods that exist on the interface (`loadBatch`, `putOverride`, `savePlan`, `recordConfirmation`) with matching argument counts/order; no drift.
+- `InvalidOverrideFieldError` (added to `src/store/sqlite/errors.ts` and wired into `SqliteReviewStateStore.putOverride` post-Work-Unit-4-verify, per that report's WARNING 1) - confirmed present in `errors.ts`, confirmed thrown by `putOverride` when `!isOverridableField(field)`, and confirmed correctly mapped by `batches.ts`'s `PUT` handler to `400 invalid_override_field` (not silently swallowed, not left as an unhandled 500). This closes the exact gap Work Unit 4's verify flagged as untested/unmapped at the time - `batches.test.ts` now has a dedicated test asserting this mapping (`"maps InvalidOverrideFieldError from the store to a 400 response"`).
+- `PlanConfirmationError`/`PLAN_CONFIRMATION_ERROR_KIND` (from Work Unit 4) - `write.ts`'s `planConfirmationErrorStatus` switch covers all three kinds (`no_plan`/`plan_id_mismatch`/`plan_expired`) exhaustively; TypeScript's `--noEmit` clean run confirms the switch is exhaustive (no `default` case needed, no missing-case error), and each kind maps to the exact HTTP status tasks.md 5.5's NOTE claims (404/409/410 respectively).
+
+No drift found anywhere between the ports/errors from Work Units 3-4 and this unit's consumption of them.
+
+---
+
+## Spec Compliance Matrix
+
+Re-read directly from `specs/review-ui/spec.md` (5 requirements / 6 scenarios) and `specs/write-confirmation/spec.md` (4 requirements / 5 scenarios). This unit's task annotations claim 1 of 5 review-ui requirements (Batch Load Failure Blocks Rendering) and 3 of 4 write-confirmation requirements (Full Write Preview Rendering; Commit Action Disabled Until Upstream Write Tools Exist; Two-Step Explicit Confirmation) - `Approval-Request Signal Rendering` is not cited by any Phase 5 task and correctly not claimed here (100% UI-rendering text, Phase 6 scope).
+
+| Requirement | Scenario | Test | Result |
+|---|---|---|---|
+| Batch Load Failure Blocks Rendering | Failed live read shows a blocking error, not a partial table | `batches.test.ts`: `queryEntities` rejects -> `502 batch_load_failed`, `store.loadBatch` never called | PARTIAL - the API-layer blocking contract (never surface stale/partial data on a live-read failure) is COMPLIANT and meaningfully tested; the scenario's own text also names "displays a visible... error message" and "no partial or cached row data... is rendered in the table", which is UI-rendering behavior belonging to Phase 6 (not yet built) |
+| Full Write Preview Rendering | Preview renders when batch is fully resolved | `write.test.ts`: `write-plan` returns 200 with a plan whose `statements` are non-empty and traceable to every resolved field | PARTIAL - the API-layer plan-data generation (equivalent-coverage local preview, or the MCP-backed plan when the flag is true) is genuinely implemented and tested; the scenario's own text ("the preview displays every planned insert/change") is UI-rendering, Phase 6 |
+| Commit Action Disabled Until Upstream Write Tools Exist | Commit control shows disabled with reason | `write.test.ts`: `write-commit` returns `501 write_tools_unavailable` with the exact Spanish reason string from design.md's sequence diagram while the flag is false | PARTIAL - the API-layer backend enablement (a machine-readable status + reason the UI needs to render the disabled control) is implemented and tested; the requirement's own scenario text is entirely about UI rendering of a disabled control, which is Phase 6 |
+| Commit Action Disabled Until Upstream Write Tools Exist | Disabled state is accessible without color | none in this unit (100% UI/visual-encoding concern) | UNTESTED / correctly out of scope - no API-layer sub-behavior exists for this scenario; Phase 6 |
+| Two-Step Explicit Confirmation | Commit requires a separate confirmation step | `write.test.ts`: `write-plan`/`write-commit` remain two structurally separate routes; the dedicated invariant test proves `write-plan` never calls `recordConfirmation`/`commitWrite` | PARTIAL - the API-layer invariant (no single request path plans-and-commits) is genuinely implemented and tested, matching design.md's sequence diagram exactly; the scenario's own text also names "a subsequent, distinct confirmation action" (a UI-level user action) and "renders its response" (UI), which is Phase 6 |
+
+**Compliance summary**: 0 of 5 in-scope scenarios are fully end-to-end COMPLIANT under the strict rule that a scenario is compliant only when a covering test passed at runtime for the complete scenario text, not a sub-behavior of it - matching this report's envelope (`requirements: 0/0`, `scenarios: 0/0`) and consistent with the Work Unit 2/3 convention (as opposed to Work Unit 4's zero-UI-wording persistence requirements, which could be scored 3/3). 4 of 5 in-scope scenarios show genuine, passing API-layer prerequisite evidence (marked PARTIAL above) - a materially stronger showing than a stub, since each PARTIAL result is backed by a real assertion against the actual route behavior, not merely "the response looks plausible." 1 of 5 (Disabled state is accessible without color) has zero API-layer sub-behavior and is correctly not attempted in this unit.
+
+---
+
+### TDD Compliance
+| Check | Result | Details |
+|-------|--------|---------|
+| TDD Evidence reported | Partial (same Engram gap as WU1-4) | No separate apply-progress artifact retrievable this session; `tasks.md` inline NOTE/RESOLVED annotations serve as the substitute self-report, cross-checked against source above |
+| All tasks have tests | Yes | 5.2/5.4/5.5/5.6 share `batches.test.ts` (7 tests) + `write.test.ts` (10 tests); 5.7 has `config.test.ts` (2 tests) + `app.test.ts` (3 tests); 5.1/5.3 are implementation-only tasks with no dedicated RED+GREEN tag, consistent with tasks.md's own tagging convention |
+| RED confirmed (tests exist) | Yes, and independently replayed | All 4 new test files verified present and non-trivial on disk; RED state additionally reproduced live via `git worktree` at commit `c4ee05c` (see RED-State Replay above) |
+| GREEN confirmed (tests pass) | Yes | 22/22 API-scoped, 100/100 full suite, independently re-run in this session, exact match to claim |
+| Triangulation adequate | Yes | 22 cases across 4 files, each with genuine outcome variance (200/404/502 for GET; 204/400 for PUT; 200/404/409 for write-plan with two distinct 200-path assertions [flag true vs. false]; 501/409/410/400/404 for write-commit; true/false flag propagation x3 for app.ts) |
+| Safety Net for modified files | N/A - no pre-existing file was modified by this unit's implementation diff (all 6 new files are Create, per `git diff --numstat` above); `tasks.md`/`state.yaml` are SDD-tracking-only changes | |
+
+**TDD Compliance**: 6/6 checks passed (1 marked N/A for a legitimate reason, not a gap)
+
+---
+
+### Test Layer Distribution
+| Layer | Tests | Files | Tools |
+|-------|-------|-------|-------|
+| Unit (domain, unchanged) | 37 | 10 | Vitest 3.2.7 |
+| Unit (MCP config/validation, unchanged) | 22 | 3 | Vitest 3.2.7 |
+| Integration (HTTP stub - MCP layer, unchanged) | 6 | 1 | Vitest 3.2.7 |
+| Integration (real file I/O - store layer, unchanged) | 13 | 1 | Vitest 3.2.7 + real `better-sqlite3` |
+| Integration (in-process Fastify - API layer, this unit) | 22 | 4 | Vitest 3.2.7 + `fastify.inject` (no real HTTP socket, no real MCP server, no real SQLite - all deps are hand-rolled fakes per design.md's Testing Strategy table) |
+| E2E | 0 | 0 | not installed yet (Phase 7) |
+| Total | 100 | 19 | |
+
+Classification note: all 22 new tests use `fastify.inject` against a real `Fastify()` instance with the actual route-registration functions, but fake `YhatReadPort`/`ReviewStateStore`/`WriteToolClient` objects (plain `vi.fn()`-backed objects, not `vi.mock()` module mocks) - classified as integration-layer (real HTTP routing/serialization/status-code machinery, fake I/O boundaries), matching design.md's Testing Strategy table exactly ("Integration | ... plan->commit gate rejects a single-call commit and an expired/mismatched planId | Vitest + in-process Fastify").
+
+---
+
+### Changed File Coverage
+
+No coverage tool is installed (unchanged from Work Units 1-4). Manual inspection: every exported route handler in `batches.ts` (`GET`, `PUT`) and `write.ts` (`write-plan`, `write-commit`) has at least one direct test per branch (success, 404, 502/409/501/400/410 as applicable). `buildLocalWritePlan` and `isFullyResolved` (pure helper functions in `write.ts`) are exercised indirectly through the route-level tests (non-empty `statements` assertion; 409 on an unresolved batch) rather than unit-tested directly - reasonable for small, pure, single-call-site helpers, consistent with how `applyOverrides` was treated in Work Unit 4.
+
+---
+
+### Assertion Quality
+
+Scanned all 4 new test files (`batches.test.ts`, `write.test.ts`, `config.test.ts`, `app.test.ts`) line-by-line for the banned patterns: tautologies, orphan empty-only checks, type-only-alone assertions, ghost loops over possibly-empty collections, smoke-test-only patterns, mock-heavy ratios.
+
+**Assertion quality**: all assertions verify real behavior against actual route responses (status code + JSON body shape) or actual mock-call assertions (`toHaveBeenCalledWith`/`not.toHaveBeenCalled`) tied to specific arguments, not just call counts in isolation. No tautologies. No ghost loops. Fakes are plain typed objects implementing the real port interfaces (`YhatReadPort`, `ReviewStateStore`, `WriteToolClient`), not `vi.mock()` module-level mocks, so a signature drift in the real interfaces would fail TypeScript compilation before any test runs - a stronger guarantee against silent test/implementation drift than a loosely-typed mock would give. Every `it` block asserts a specific, varied expected value (exact error codes, exact HTTP statuses, exact call-argument shapes, non-empty array lengths), not a generic truthy check.
+
+---
+
+### Quality Metrics
+
+Linter: not available, no lint script configured, unchanged from Work Units 1-4.
+Type Checker: `tsc -p tsconfig.json --noEmit`, independently re-run, clean, zero errors.
+
+---
+
+## Correctness (Static + Runtime Evidence)
+
+| Requirement | Status | Notes |
+|---|---|---|
+| Live-read-before-store ordering (blocking-error contract) | Implemented, tested | See task 5.2 above; structurally guaranteed by the handler's control flow, not just true for the test's mock timing |
+| `write-plan` fully-resolved precondition | Implemented, tested | `isFullyResolved` checks every field's `status === "resolved"` AND every FA entry's `status === "resolved"`; `409 batch_not_fully_resolved` returned otherwise, with `store.savePlan` asserted never called on that path |
+| `write-commit` body `.strict()` schema | Implemented, tested | Confirmed `.strict()` (not `.object()`'s default silent-key-stripping) is the actual mechanism rejecting an extra `statements` key |
+| Plan-never-implicitly-commits invariant | Implemented, tested | Both proof paths (no-plan-exists 404; write-plan-alone never calls `recordConfirmation`/`commitWrite`) independently confirmed against actual route code, not just response shape |
+| `WRITE_TOOLS_ENABLED` exact-string match | Implemented, tested | `=== "true"` literal comparison; test covers `"TRUE"`, `"1"`, `"false"`, and unset, all correctly resolving to `false` |
+| Ports/errors consumption, no drift | Implemented, tested | `YhatReadPort`/`ReviewStateStore`/`InvalidOverrideFieldError`/`PlanConfirmationError` all consumed with matching signatures; `InvalidOverrideFieldError` (added post-WU4-verify) is now genuinely mapped to `400`, closing that report's WARNING 1 |
+
+---
+
+## Coherence (Design)
+
+| Decision | Followed? | Notes |
+|---|---|---|
+| design.md File Changes (`src/api/routes/{batches,write}.ts`) | Yes | Both files present, scoped exactly as described; `write.ts`'s local plan builder living outside `src/domain/` is a disclosed, reasoned deviation (see task 5.4 above), not silent |
+| design.md Write-Confirmation Gate sequence diagram | Yes, line-by-line | `write-plan`'s `409` precondition ("Preparar alta enabled only when every field is resolved"), the `awaiting_confirmation` persist step, the `501`-with-exact-Spanish-copy commit response, and the plan/commit invariant all match the sequence diagram verbatim, confirmed by direct re-read of design.md against `write.ts` |
+| design.md Interfaces/Contracts (`YhatReadPort`, `ReviewStateStore`) | Yes | Both routes consume the ports with zero drift, confirmed above |
+| design.md Testing Strategy (API layer: "Vitest + in-process Fastify") | Yes | All 22 new tests use `fastify.inject`, matching exactly |
+| design.md Migration/Rollout (`WRITE_TOOLS_ENABLED=false` default; plan degrades to a locally-rendered preview) | Yes | `resolveApiConfig` defaults to `false`; `buildLocalWritePlan` is exactly this degraded local preview path |
+
+---
+
+## Issues Found
+
+### CRITICAL
+None. All 7 tasks (5.1-5.7) are genuinely implemented across both PR splits, no stubs found anywhere. All claimed test (22/22 API-scoped, 100/100 full suite), typecheck, and build results were independently reproduced exactly. Both diff-size claims (304/4 and 672/8) were reproduced to the exact line and file count. Both PRs' base/head refs are correct for the declared chained-PR-within-a-work-unit structure (PR #7 targets PR #6's branch, not `feat/sqlite-store`, exactly as the task brief states is intentional). Zero AI/Claude attribution was found anywhere in commits or either PR body. `.strict()`, the fully-resolved precondition, the plan-never-implicitly-commits invariant, and the exact-string `WRITE_TOOLS_ENABLED` match were all independently re-verified against source and confirmed genuinely (not just plausibly) tested.
+
+### WARNING
+1. `isFullyResolved`'s FA-resolution check (`code.fa.every((fa) => fa.status === "resolved")`) returns `true` vacuously for a code whose `fa` array is empty (`[]`), since `Array.prototype.every` on an empty array is always `true`. `fa` is a `z.array(faEntrySchema)` (variable length) per `src/domain/types.ts`, not a fixed single-slot field, so a code that has not yet had any FA candidate resolved into it (an empty array, distinct from an array containing an unresolved entry) would pass the fully-resolved gate and become plannable. No test in `write.test.ts` exercises this specific empty-array case (both `makeResolvedBatch`/`makeUnresolvedBatch` fixtures always populate exactly one `fa` entry). Not necessarily a functional defect - it may be intentional that a code needing zero FA changes is trivially "FA-resolved" - but this exact edge case has zero test coverage and is not called out anywhere in tasks.md's NOTE for task 5.3, so it is not clear whether it was considered. Worth an explicit test (and a decision on intended behavior) before Phase 6 wires the real "Preparar alta" button to this same precondition.
+2. True RED-first git-history replay is possible and was reproduced for all three task groups in this unit (5.2, 5.4-5.6, 5.7) - a strength, not a weakness - but the SDD-tracking-file commits (`4b8e325`, `389c7d8`, marking tasks done in `tasks.md`/`state.yaml`) are separate from the RED/GREEN pairs and were not scanned for AI attribution independently of the aggregate `git log` grep above; the aggregate grep did cover them and found nothing, so this is a documentation note, not an unresolved gap.
+
+### SUGGESTION
+1. Consider adding an explicit test for `isFullyResolved` with an empty `fa` array (see WARNING 1), and documenting the intended semantics (is a code with zero FA candidates "resolved" by definition, or should it require at least one `resolved` FA entry?) in `write.ts`'s doc comment or `tasks.md`'s 5.3 NOTE.
+2. `src/index.ts` remains the Phase-1 scaffold placeholder, correctly and consistently disclosed as an explicit follow-up in task 5.7's RISK/NOTE - consider tracking it as an explicit numbered task (rather than only prose) under Phase 6 or a new "server boot wiring" line, since Phase 6 needs a running server to develop the SPA against per tasks.md's own Suggested Work Units table.
+3. Given this unit is the first in this change delivered as two chained PRs from one original `sdd-apply` diff (rather than one PR per work unit), consider recording the split rationale (800-line budget, `size:exception` declined in favor of a split) directly in `state.yaml`'s `work_unit_5_result` block for future readers who only see PR #6/#7 in isolation.
+
+---
+
+## Verdict
+
+**PASS WITH WARNINGS**
+
+Work Unit 5 (Phase 5 API layer, tasks 5.1-5.7, delivered as two chained PRs #6/#7 sharing one original `sdd-apply` diff) is genuinely and completely implemented: `batches.ts` and `write.ts` both consume `YhatReadPort`/`ReviewStateStore`/the Work-Unit-4 error taxonomy with zero drift, all 7 tasks produce real, non-stub route logic, and all claimed test (22/22 API-scoped, 100/100 full suite), typecheck, and build results were independently reproduced exactly. This is the second work unit in this change (after Work Unit 4) with a genuinely bisectable RED-then-GREEN commit history, independently replayed live via `git worktree` for the earliest pair (`c4ee05c` -> `27e5edd`), reproducing the exact expected `Cannot find module './batches.js'` failure. Both diff-size claims (304 lines/4 files for split A; 672 lines/8 files for split B) were reproduced to the exact line and file count, and both PRs' base/head refs correctly implement the intentional chained-PR-within-a-work-unit structure the task brief describes (PR #7 targets PR #6's branch). The five specific claims flagged for extra scrutiny in the task brief - the live-read-before-store ordering, the fully-resolved precondition, the `.strict()` commit-body schema, the plan-never-implicitly-commits invariant, and the exact-string `WRITE_TOOLS_ENABLED` match - were all independently verified against source (not just the test's framing) and confirmed to be genuinely, not superficially, tested. Zero AI/Claude attribution was found anywhere in commits or either PR body. One non-blocking WARNING (an untested vacuous-true edge case in the FA-resolution precondition for codes with an empty `fa` array) keeps this from a clean PASS, but does not indicate a functional defect in the shipped code's intended common-case behavior and does not block proceeding to Work Unit 6.
+
+What could not be verified in this environment: nothing material. Both PRs were reachable via `gh`, both branches were checked out/diffed directly, and the RED-replay technique from Work Unit 4 was successfully repeated here.
+
+---
+
+## Key Learnings
+
+1. `git worktree add` at a pre-implementation commit, with `node_modules` copied over rather than reinstalled, reliably reproduces a literal RED failure even across a two-PR chained delivery - reproduced the exact claimed error (`Cannot find module './batches.js'`) at commit `c4ee05c`.
+2. A two-PR chained split of one original `sdd-apply` diff (after exceeding the 800-line review budget) does not fragment TDD evidence - all three RED/GREEN commit pairs remain individually bisectable regardless of which PR they land in.
+3. `.strict()` on a Zod object schema, not `.object()`'s default key-stripping, is what genuinely rejects an unexpected `statements` key in the write-commit body - confirmed by reading the schema definition directly, not inferring it from the test's pass/fail alone.
+4. `Array.prototype.every` on an empty array is vacuously `true`, so a fully-resolved-batch precondition keyed on `fa.every(...)` silently treats a code with zero FA entries as FA-resolved - a real, currently-untested edge case in `isFullyResolved`.
+5. `InvalidOverrideFieldError`, added post-Work-Unit-4-verify specifically to close that report's WARNING 1, is now genuinely consumed and mapped to `400` by this unit's `PUT` route, with a dedicated passing test - closing that prior gap rather than leaving it dangling.
+
+---
