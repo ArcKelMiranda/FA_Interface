@@ -9,23 +9,27 @@ facodes becomes a self-contained, containerized **read-live / write-gated** serv
 ```
                         VPN boundary (existing)
   Browser (MR, any machine) ──TLS──► Caddy ──┬─ /facodes/* ─► facodes        :8080
-                                             ├─ /mcp/*     ─► yhat-mcp-server :3000
-                                             └─ /audit/*   ─► yhat-mcp-server :3000
+                                              ├─ /mcp/*     ─► yhat-mcp-server :3000
+                                              └─ /audit/*   ─► yhat-mcp-server :3000
 
-  docker network: yhat-internal  (declared `external: true` by facodes)
+  facodes reaches yhat-mcp-server over HTTP(S) via YHAT_INTERNAL_HOST /
+  YHAT_MCP_URL. Production routes through yhat-mcp-server's own Caddy-fronted
+  `yhat-mcp-proxy` service (its `ec2` compose profile, TLS 443). Local dev has
+  two real options documented in docker-compose.yml: point YHAT_INTERNAL_HOST
+  at a reachable address, or share a manually-created Docker network.
   ┌───────────────────────────────────┐          ┌───────────────────────────┐
-  │ facodes  (Node 22 / Fastify)      │          │ yhat-mcp-server           │
-  │  web/     React 19 SPA (Vite)     │          │  yhat_query_entities      │
-  │  api/     REST for the SPA        │──MCP────►│  yhat_query (admin only)  │──► SQL Server
-  │  domain/  resolver · dedupe · FA  │  HTTP    │  [write tools: ABSENT]    │       YHat
-  │  mcp/     YhatReadPort adapter    │  /mcp    └───────────────────────────┘
-  │  store/   ReviewStateStore (SQLite)│
+  │ facodes  (Node 22 / Fastify)      │   HTTPS  │ yhat-mcp-server           │
+  │  web/     React 19 SPA (Vite)     │ ─MCP────►│  yhat_query_entities      │
+  │  api/     REST for the SPA        │  /mcp    │  yhat_query (admin only)  │──► SQL Server
+  │  domain/  resolver · dedupe · FA  │          │  [write tools: ABSENT]    │       YHat
+  │  mcp/     YhatReadPort adapter    │          │                           │
+  │  store/   ReviewStateStore (SQLite)│          └───────────────────────────┘
   └──────────────┬────────────────────┘
-                 │ named volume `facodes-data`
-          review-state.db (SQLite, WAL)
+                  │ named volume `facodes-data`
+           review-state.db (SQLite, WAL)
 ```
 
-facodes reaches `yhat-mcp-server` **container-to-container** at `http://yhat-mcp-server:3000/mcp`, not back out through Caddy. It must still satisfy that endpoint's existing gate (`authorizeInternalMcpRequest`): send `x-yhat-internal-identity: ${YHAT_INTERNAL_IDENTITY}` and a `Host` inside the allowlist (`yhat-mcp-server` resolves via the shared network; `YHAT_INTERNAL_HOST` is set accordingly).
+facodes reaches `yhat-mcp-server` over HTTP(S) at the URL composed from `YHAT_INTERNAL_HOST` / `YHAT_MCP_URL` (default `https://mcp.internal.yhat/mcp`). The client (`src/mcp/yhat-client.ts`) refuses to start unless the target host passes an allowlist that mirrors `yhat-mcp-server`'s own `authorizeInternalMcpRequest` gate; on every call it sends `x-yhat-internal-identity: ${YHAT_INTERNAL_IDENTITY}` and a `Host` header that the server allowlists.
 
 ## Architecture Decisions
 
@@ -143,7 +147,7 @@ Page shape follows YHAT's landing order: Header → Title → Filters → KPIs �
 | `src/api/routes/{batches,write}.ts` | Create | SPA REST surface incl. plan/commit gate |
 | `src/web/` | Create | React 19 SPA: table, drawer, fingerprint, FA editor, plan review |
 | `src/web/styles/tokens.css` | Create | YHAT v1.0 CSS custom properties, verbatim |
-| `Dockerfile`, `docker-compose.yml`, `.env.example` | Create | Multi-stage build; compose joins `yhat-internal` as external |
+| `Dockerfile`, `docker-compose.yml`, `.env.example` | Create | Multi-stage build; compose reaches yhat-mcp-server via `YHAT_INTERNAL_HOST` / `YHAT_MCP_URL` (see env.example for local-dev options) |
 | `deploy/caddy-facodes.snippet` | Create | `route /facodes/* { reverse_proxy facodes:8080 }` for the existing site block |
 | `openspec/config.yaml` | Modify | `tdd: true`, `test_command: "npm test"`, `build_command: "npm run build"` |
 | `archive/v5-artifact.jsx` | Create | Rollback prerequisite — archive the v5 source before cutover |
@@ -190,6 +194,5 @@ Full replacement, no parallel run. Order: (1) archive the v5 artifact source int
 
 ## Open Questions
 
-- [ ] Confirm the `yhat-mcp-server` Compose network name and whether facodes is allowed to join it (assumed `yhat-internal`; the sibling repo's compose file is not in the local checkout).
 - [ ] Confirm the future write tool's name and approval-request payload shape — the sequence above uses a provisional `yhat_write_codes` contract that the cross-project change may rename.
 - [ ] Whether `better-sqlite3` prebuilds cover the bastion's architecture, or the image needs a build stage (fallback: Node 22 `node:sqlite`).
