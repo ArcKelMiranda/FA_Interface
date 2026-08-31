@@ -1,0 +1,46 @@
+services:
+  facodes:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: facodes:internal
+    env_file:
+      - .env
+    environment:
+      PORT: "8080"
+      YHAT_INTERNAL_HOST: ${YHAT_INTERNAL_HOST:-yhat-mcp-server}
+      WRITE_TOOLS_ENABLED: ${WRITE_TOOLS_ENABLED:-false}
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - facodes-data:/data
+    init: true
+    networks:
+      - yhat-internal
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          const net = require('node:net');
+          const socket = net.connect(8080, '127.0.0.1', () => { socket.end(); process.exit(0); });
+          socket.on('error', () => process.exit(1));
+          setTimeout(() => process.exit(1), 3000);
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  facodes-data:
+
+networks:
+  # TBD (design.md Open Questions / tasks.md 3.2): the exact Compose network
+  # name yhat-mcp-server publishes is not verifiable from this checkout —
+  # its own docker-compose.yml uses Compose's implicit default network, not
+  # a declared external one. `yhat-internal` is a provisional placeholder;
+  # task 3.2 blocks finalizing this until the sibling repo's real network
+  # is confirmed. Do not deploy against this compose file unverified.
+  yhat-internal:
+    external: true
