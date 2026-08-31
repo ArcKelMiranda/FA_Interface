@@ -365,16 +365,20 @@ work_unit_4_verify_result:
     implementation were committed together
   critical_findings: 0
   warnings:
-    - putOverride's field parameter has no runtime or SQL-level validation
-      against the 8 known overridable fields; an invalid field is silently
-      dropped on load (applyOverrides guard) with zero test coverage of
-      that path. Not currently exploitable (no caller yet), but worth a
-      test before Phase 5 starts calling putOverride
-    - design.md's Testing Strategy table suggests ":memory:" SQLite for
-      this layer; the actual tests use a real temp-file-backed database
-      instead, undisclosed as an intentional deviation anywhere. Judged the
-      better choice (":memory:" would break the second-connection
-      durability proof), but not documented as deliberate
+    - RESOLVED (commit 15f359b, post-verify fix): putOverride's field
+      parameter had no runtime validation against the 8 known overridable
+      fields (office, country, region, ibd, nscc, origin, dealer, agente).
+      Fixed by validating with the existing isOverridableField() guard at
+      write time (it was previously only enforced at read time) and
+      throwing a new InvalidOverrideFieldError on an unknown field. RED
+      test added first (13th test in index.test.ts), full suite now 78/78,
+      typecheck/build clean, pushed to feat/sqlite-store (updates PR #5 in
+      place), AI-attribution scan clean.
+    - RESOLVED (commit 15f359b, same push): design.md's Testing Strategy
+      table suggests ":memory:" SQLite for this layer; the actual tests use
+      a real temp-file-backed database instead. Documented as intentional
+      with a one-line docstring note in src/store/sqlite/index.ts
+      (":memory:" would break the second-connection durability proof).
     - PR #5 targets feat/domain-rules rather than feat/ports-mcp-client
       (work unit 3's own branch name), because PR #4 was already merged
       into feat/domain-rules before this branch was cut -- a legitimate
