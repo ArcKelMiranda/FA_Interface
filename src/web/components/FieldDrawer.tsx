@@ -15,6 +15,7 @@ import {
   type FaDiscardedOption,
   type FaTipo,
 } from "./FaEditor.js";
+import { OverrideMarker } from "./OverrideMarker.js";
 import { StatusBadge } from "./StatusBadge.js";
 
 export interface DrawerAlternative {
@@ -176,10 +177,8 @@ function NonFaFieldPanel({
         </p>
       )}
 
-      {detail.isOverride && onRestore && (
-        <button type="button" onClick={onRestore}>
-          Restaurar sugerencia
-        </button>
+      {onRestore && (
+        <OverrideMarker isOverride={Boolean(detail.isOverride)} onRestore={onRestore} />
       )}
 
       <div style={{ marginTop: "var(--space-2)" }}>

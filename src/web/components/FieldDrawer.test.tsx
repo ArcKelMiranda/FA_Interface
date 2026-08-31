@@ -90,4 +90,55 @@ describe("FieldDrawer", () => {
     expect(screen.queryByText("New York")).not.toBeInTheDocument();
     expect(screen.getByText("Newark")).toBeInTheDocument();
   });
+
+  it("renders OverrideMarker with the 'Editado' badge and a restore button when detail.isOverride is true and onRestore is provided", () => {
+    render(
+      <FieldDrawer
+        open
+        detail={{ ...nonFaField(), isOverride: true }}
+        onClose={() => {}}
+        onAcceptAlternative={() => {}}
+        onCatalogSelect={() => {}}
+        onRestore={() => {}}
+      />,
+    );
+
+    expect(screen.getByText(/editado/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /restaurar sugerencia/i })).toBeInTheDocument();
+  });
+
+  it("does not render the OverrideMarker UI when detail.isOverride is false", () => {
+    render(
+      <FieldDrawer
+        open
+        detail={{ ...nonFaField(), isOverride: false }}
+        onClose={() => {}}
+        onAcceptAlternative={() => {}}
+        onCatalogSelect={() => {}}
+        onRestore={() => {}}
+      />,
+    );
+
+    expect(screen.queryByText(/editado/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /restaurar sugerencia/i })).not.toBeInTheDocument();
+  });
+
+  it("invokes onRestore when the user clicks 'Restaurar sugerencia' inside the OverrideMarker", async () => {
+    const user = userEvent.setup();
+    const onRestore = vi.fn();
+    render(
+      <FieldDrawer
+        open
+        detail={{ ...nonFaField(), isOverride: true }}
+        onClose={() => {}}
+        onAcceptAlternative={() => {}}
+        onCatalogSelect={() => {}}
+        onRestore={onRestore}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /restaurar sugerencia/i }));
+
+    expect(onRestore).toHaveBeenCalledTimes(1);
+  });
 });
