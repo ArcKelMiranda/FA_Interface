@@ -14,12 +14,17 @@ dependency_graph:
   specs: done
   design: done
   tasks: done
-  apply: work_unit_5_of_8_done
+  apply: work_unit_6_of_8_done
   verify: work_unit_1_PASS, work_unit_2_PASS_WITH_WARNINGS, work_unit_3_PASS_WITH_WARNINGS,
-    work_unit_4_PASS_WITH_WARNINGS, work_unit_5_PASS_WITH_WARNINGS
+    work_unit_4_PASS_WITH_WARNINGS, work_unit_5_PASS_WITH_WARNINGS,
+    work_unit_6_FAIL_then_fixed
   archive: pending
-next_recommended: sdd-apply for work unit 6 (Phase 6, Web SPA) -- work unit 5
-  (Phase 5 API layer, PR #6 + PR #7) verified PASS WITH WARNINGS
+next_recommended: sdd-apply for work unit 7 (Phase 7, Integration/E2E),
+  branching from feat/web-spa -- work unit 6 initially verified FAIL (3
+  CRITICAL wiring gaps), all 3 fixed and pushed to PR #12 (see
+  work_unit_6_verify_result); a re-verify pass of the fix is recommended
+  before archive, though the orchestrator independently reproduced
+  151/151 tests, clean typecheck/build after the fix
 remote_repo: https://github.com/ArcKelMiranda/FA_Interface.git
 git_local: initialized, remote "origin" added, no commits yet
 chain_strategy: feature-branch-chain
@@ -515,3 +520,180 @@ work_unit_5_verify_result:
     (color-independent disabled-state) is 100% UI scope, correctly
     untested here. Strict envelope reports 0/0 per the Work Unit 2/3
     convention (only fully end-to-end compliant scenarios count)
+work_unit_6_result:
+  status: done
+  scope: Phase 6 Web SPA (YHAT Design System v1.0), tasks 6.1-6.12, all 12
+    marked [x] in tasks.md with inline NOTE/RESOLVED annotations
+  delivery: split into 5 chained PRs (feature-branch-chain) rather than one --
+    the combined diff (2920 changed lines vs feat/api-write-config, including
+    a 250-line generated package-lock.json) far exceeds the 800-line session
+    review budget. Each PR maps to one cohesive, independently-testable
+    commit already produced during one continuous apply session (same
+    "cherry-pick/branch-per-checkpoint" pattern as work unit 5's split);
+    every intermediate branch's own test suite passes standalone
+    (independently re-run per branch: 109/120/133/139/144 tests respectively)
+  branches_and_prs:
+    - branch: feat/web-tokens (off feat/api-write-config)
+      scope: tasks 6.1, 6.4, 6.5 -- tokens.css, status-meta.ts (status/texture
+        mapping), StatusBadge, Fingerprint; jsdom Vitest project wiring
+        (@testing-library/react + jest-dom + user-event)
+      diff: 693 changed lines
+      tests_at_this_commit: 109/109 (101 baseline + 8 new)
+    - branch: feat/web-drawer (off feat/web-tokens)
+      scope: tasks 6.6, 6.7, 6.8 -- OverrideMarker, FaEditor (3 modes +
+        discarded reactivation), FieldDrawer (role=dialog aria-modal=true,
+        Escape-to-close, catalog search filter)
+      diff: 667 changed lines
+      tests_at_this_commit: 120/120
+    - branch: feat/web-table (off feat/web-drawer)
+      scope: tasks 6.2 (partial -- KpiRow only, full shell lands in the last
+        slice), 6.3, 6.9, 6.12 -- BatchTable (filterable, hover/selected,
+        density), Filters, KpiRow, EmptyState, ErrorState
+      diff: 719 changed lines
+      tests_at_this_commit: 133/133
+    - branch: feat/web-confirm (off feat/web-table)
+      scope: tasks 6.10, 6.11 -- ConfirmControl (two-step batch-number
+        retype + "Revisé el plan" gate, accent #00E3DB reserved to this
+        control), PlanReview (disabled commit CTA with stated reason,
+        writeToolsEnabled seam for embedding ConfirmControl later)
+      diff: 271 changed lines
+      tests_at_this_commit: 139/139
+    - branch: feat/web-spa (off feat/web-confirm, tip of this work unit)
+      scope: task 6.2 (page shell completion) -- App.tsx container (Header
+        -> PageTitle -> Filters -> KpiRow -> BatchTable -> Footer,
+        load/empty/error/loaded states, fingerprint->drawer->override round
+        trip, "Preparar alta"->plan-review hand-off), api/client.ts fetch
+        wrappers, Header/PageTitle/Footer, main.tsx wiring; also fixes
+        FaEditor.tsx/FieldDrawer.tsx optional-field types to the zod
+        `| undefined` convention so a standalone strict tsc pass over
+        src/web (ad hoc, since the root tsconfig excludes src/web from
+        `npm run typecheck` by design) is clean
+      diff: 588 changed lines
+      tests_at_this_commit: 144/144 (full suite)
+  tests: 144/144 passing full suite (43 new: StatusBadge 4, Fingerprint 4,
+    OverrideMarker 2, FaEditor 5, FieldDrawer 4, Filters 5, BatchTable 5,
+    KpiRow 1, EmptyState 1, ErrorState 1, ConfirmControl 3, PlanReview 3,
+    App 5); npm run typecheck clean; npm run build clean (tsc + vite);
+    additionally verified with a standalone strict `tsc --noEmit` pass over
+    src/web (same compilerOptions as tsconfig.json, since the root config
+    excludes src/web by design) -- clean after the exactOptionalPropertyTypes
+    fixes in the final slice
+  tdd_mode: strict TDD followed for every task with real interactive/
+    conditional logic (table filtering, drawer open/close+Escape, FA editor
+    mode switching, fingerprint->drawer wiring, confirm-control gating,
+    status badge state mapping, batch load/empty/error states) -- RED
+    confirmed via `npx vitest run --project web <file>` before each
+    component existed, then implemented to GREEN. tokens.css (6.1) and the
+    three purely-presentational shell pieces (Header/PageTitle/Footer) have
+    no dedicated test, per the session's explicit guidance for
+    non-interactive presentational components.
+  deviations:
+    - OverrideMarker's "isOverride" state is client-side/session-only (see
+      task 6.8 NOTE above) -- the GET /api/batches/:id contract has no
+      override-marker field to round-trip; a page reload keeps the
+      corrected value but loses the "Editado" badge
+    - PlanReview/ConfirmControl's write-tools-enabled path is built and
+      tested but not reachable from App.tsx in production yet -- there is
+      no live config endpoint exposing WRITE_TOOLS_ENABLED to the browser,
+      and wiring a real write-commit call only makes sense once
+      yhat-mcp-server ships write tools (blocked task 8.4)
+    - FieldDrawer's "catalog search" filters the field's own alternatives
+      list client-side rather than issuing a fresh live MCP query per
+      keystroke -- no live catalog-search API endpoint exists in this
+      phase's scope (see task 6.6 NOTE)
+  ai_attribution_scan: clean, zero Co-Authored-By/Claude Code footers/
+    session links across all 5 implementation commits (grep across the
+    full feat/api-write-config..feat/web-spa range)
+  engram_tooling_gap: mem_search/mem_get_observation/mem_save and every
+    other mem_* tool were absent from this session's own tool inventory
+    (Read, Edit, Write, Glob, Grep, Bash only) -- same recurring gap
+    independently noted for every prior apply/verify session on this
+    change. apply-progress could only be persisted to the OpenSpec side of
+    the hybrid artifact store (this state.yaml block plus tasks.md
+    checkboxes), not to Engram under sdd/direct-db-integration/apply-progress
+    as instructed.
+work_unit_6_verify_result:
+  status: FAIL_then_fixed
+  verdict: fail_then_fixed
+  scope: Work Unit 6, Phase 6 Web SPA, tasks 6.1-6.12, PRs #8-#12
+  reproduced_independently: npm install, full npm test (144/144 before fix),
+    npm run typecheck (clean), npm run build (clean), per-PR git diff
+    --numstat matching all 5 claimed line counts exactly, gh pr view 8-12
+    all OPEN with correct chained base/head, git log AI-attribution scan
+    (clean)
+  critical_findings: 3
+  critical_findings_detail:
+    - FA resolution (task 6.7) was non-functional end-to-end -- App.tsx
+      never passed onSelectFaAlternative/onSelectExistingFa/onCreateNewFa/
+      onReactivateDiscardedFa to FieldDrawer; they fell back to no-op
+      () => {}. FaEditor.test.tsx only passed because it mocks the
+      callbacks; App.test.tsx never opened the fa field's drawer.
+    - Override marker/restore (task 6.8) was dead code -- OverrideMarker
+      rendered nowhere in production, App.tsx had no isOverride state at
+      all, onMarkForReview never wired either.
+    - "Precedent codes" were never rendered in the drawer despite both the
+      spec text and FieldDrawer.tsx's own doc comment claiming they were
+      shown (CodeEntry.references never read).
+  warnings:
+    - missing UI implementation for fa-assignment's False-Company Alert /
+      Generic Unidentified Placeholder (likely a tasks.md coverage gap,
+      not this unit's fault)
+    - non-bisectable per-slice commit history (same pattern as WU2/WU3)
+    - an unused --shadow-focus CSS token
+  spec_compliance_at_fail: 9/16 in-scope scenarios (7/13 requirements)
+    fully end-to-end compliant before the fix; 4 scenarios failed
+    end-to-end despite passing isolated component tests; 2 scenarios
+    (Two-Step Confirmation, Approval-Request Signal) honestly disclosed as
+    blocked on the external yhat-mcp-server write-tools dependency, not
+    treated as defects
+  post_verify_fix: 'All 3 CRITICAL findings fixed directly by the
+    orchestrator (strict TDD, RED-then-GREEN) on feat/web-spa, pushed to
+    origin (updates PR #12 in place). Fix commits: (1) wired
+    onSelectFaAlternative/onSelectExistingFa/onCreateNewFa/
+    onReactivateDiscardedFa in App.tsx to real client-side state updates
+    on code.fa (no backend persistence path exists for FA resolution --
+    ReviewStateStore.putOverride only covers the 8 scalar fields, not fa;
+    confirmed via src/store/sqlite/index.ts OVERRIDABLE_FIELDS -- so FA
+    resolution is honestly scoped as client-side/session-only, same
+    pattern already declared for the override marker); existing-by-Id
+    uses a "FA #<id>" placeholder name (no name available client-side);
+    new-FA uses a negative Date.now()-based placeholder id, state:"nuevo",
+    status:"resolved" (write preview reflects it per spec); reactivating a
+    discarded candidate moves it into alternatives WITHOUT auto-resolving,
+    per the exact spec scenario wording ("becomes an assignable
+    alternative"), and the open drawer refreshes live via a new
+    buildFaDrawerDetail helper. (2) wired isOverride/onRestore/
+    onMarkForReview in App.tsx (overriddenFields Set + originalFieldValues
+    map preserve the pre-override value for restore); replaced
+    FieldDrawer''s inline restore button with the actual OverrideMarker
+    component so it is no longer orphaned. (3) added a references field to
+    NonFaFieldDetail and rendered a "Códigos precedentes" section
+    (title/description/columns/rows table/footnote) in FieldDrawer.tsx,
+    sourced from CodeEntry.references. Added 7 new App-level integration
+    tests exercising each fix end-to-end (real button clicks, real state
+    assertions), not just prop-passed mocks -- the exact gap verify found
+    missing. Full suite 151/144 -> 151/151 after the fix (7 new), npm run
+    typecheck clean, npm run build clean. AI-attribution scan clean on all
+    fix commits.'
+  incident_note: 'A background sdd-apply-style fix agent (launched to fix
+    these same 3 findings) hit a session rate limit and failed before
+    writing any code. Separately, and apparently caused by that same
+    failed agent process, the orchestrator''s own in-progress edits to
+    FieldDrawer.tsx and App.test.tsx, plus this verify session''s own
+    uncommitted state.yaml/verify-report.md updates, were silently reverted
+    on disk mid-session (root cause not fully diagnosed -- suspected a git
+    operation run by the failed agent before its crash). The orchestrator
+    detected this via a stale-file warning, confirmed the loss via git
+    status and content greps, and redid the lost edits from content already
+    held in conversation context. No data was lost that could not be
+    reconstructed; this state.yaml block and the verify-report.md Work Unit
+    6 section were rewritten from the original verify agent''s full
+    reported findings. Lesson: do not run a background agent concurrently
+    with direct manual edits to the same working tree.'
+  ai_attribution_scan_post_fix: clean, zero Co-Authored-By/Claude Code
+    footers/session links across all new fix commits
+  engram_tooling_gap: mem_* tools were not available in the verify session
+    that produced the FAIL verdict; the post-fix work was done directly by
+    the orchestrator session, which does have mem_* tools available -- an
+    Engram save for this outcome should still be made by the orchestrator
+    after this state.yaml/verify-report.md persistence completes.

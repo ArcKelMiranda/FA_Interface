@@ -18,9 +18,21 @@ import {
 import { OverrideMarker } from "./OverrideMarker.js";
 import { StatusBadge } from "./StatusBadge.js";
 
+export interface DrawerReference {
+  title: string;
+  description: string;
+  columns: string[];
+  rows: Record<string, unknown>[];
+  footnote?: string | undefined;
+}
+
+// `| undefined` on every optional field below matches zod's
+// `.optional()`-inferred shape under exactOptionalPropertyTypes, so these
+// types accept BatchAnalysis field/alternative data (src/domain/types.ts)
+// directly without a normalization step.
 export interface DrawerAlternative {
   label: string;
-  hint?: string;
+  hint?: string | undefined;
 }
 
 export interface NonFaFieldDetail {
@@ -29,9 +41,10 @@ export interface NonFaFieldDetail {
   label: string;
   value: string;
   status: FieldStatus;
-  evidence?: string;
-  alternatives?: DrawerAlternative[];
-  isOverride?: boolean;
+  evidence?: string | undefined;
+  alternatives?: DrawerAlternative[] | undefined;
+  isOverride?: boolean | undefined;
+  references?: DrawerReference[] | undefined;
 }
 
 export interface FaFieldDetail {
@@ -157,10 +170,11 @@ function NonFaFieldPanel({
   onQueryChange: (q: string) => void;
   onAcceptAlternative: (alt: DrawerAlternative) => void;
   onCatalogSelect: (alt: DrawerAlternative) => void;
-  onMarkForReview?: () => void;
-  onRestore?: () => void;
+  onMarkForReview?: (() => void) | undefined;
+  onRestore?: (() => void) | undefined;
 }) {
   const alternatives = detail.alternatives ?? [];
+  const firstAlternative = alternatives[0];
   const filtered = query.trim()
     ? alternatives.filter((alt) => alt.label.toLowerCase().includes(query.trim().toLowerCase()))
     : alternatives;
@@ -177,8 +191,48 @@ function NonFaFieldPanel({
         </p>
       )}
 
-      {onRestore && (
-        <OverrideMarker isOverride={Boolean(detail.isOverride)} onRestore={onRestore} />
+      {onRestore && <OverrideMarker isOverride={detail.isOverride ?? false} onRestore={onRestore} />}
+
+      {detail.references && detail.references.length > 0 && (
+        <section aria-label="Códigos precedentes" style={{ marginTop: "var(--space-2)" }}>
+          <p style={{ font: "var(--font-body-2)", fontWeight: 600 }}>Códigos precedentes</p>
+          {detail.references.map((ref) => (
+            <div key={ref.title} style={{ marginBottom: "var(--space-2)" }}>
+              <p style={{ font: "var(--font-body-2)", fontWeight: 600 }}>{ref.title}</p>
+              <p style={{ font: "var(--font-body-2)", color: "var(--color-gray-600)" }}>
+                {ref.description}
+              </p>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    {ref.columns.map((col) => (
+                      <th key={col} style={{ textAlign: "left", font: "var(--font-caption)" }}>
+                        {col}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {ref.rows.map((row, rowIndex) => (
+                    // eslint-disable-next-line react/no-array-index-key
+                    <tr key={rowIndex}>
+                      {ref.columns.map((col) => (
+                        <td key={col} style={{ font: "var(--font-body-2)" }}>
+                          {String(row[col] ?? "")}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {ref.footnote && (
+                <p style={{ font: "var(--font-caption)", color: "var(--color-gray-500)" }}>
+                  {ref.footnote}
+                </p>
+              )}
+            </div>
+          ))}
+        </section>
       )}
 
       <div style={{ marginTop: "var(--space-2)" }}>
@@ -207,10 +261,10 @@ function NonFaFieldPanel({
       </ul>
 
       <div style={{ display: "flex", gap: "var(--space-1)" }}>
-        {alternatives[0] && (
+        {firstAlternative && (
           <button
             type="button"
-            onClick={() => onAcceptAlternative(alternatives[0])}
+            onClick={() => onAcceptAlternative(firstAlternative)}
             style={{
               background: "var(--color-primary-1-600)",
               color: "var(--color-white)",

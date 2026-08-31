@@ -14,7 +14,10 @@ export interface FaAlternativeOption {
   label: string;
   faId: number;
   faName: string;
-  hint?: string;
+  // `| undefined` matches zod's `.optional()`-inferred shape under
+  // exactOptionalPropertyTypes, so these types accept BatchAnalysis data
+  // (src/domain/types.ts) directly without a normalization step.
+  hint?: string | undefined;
 }
 
 export interface FaDiscardedOption {
