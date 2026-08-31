@@ -14,12 +14,13 @@ dependency_graph:
   specs: done
   design: done
   tasks: done
-  apply: work_unit_5_of_8_done
+  apply: work_unit_6_of_8_done
   verify: work_unit_1_PASS, work_unit_2_PASS_WITH_WARNINGS, work_unit_3_PASS_WITH_WARNINGS,
     work_unit_4_PASS_WITH_WARNINGS, work_unit_5_PASS_WITH_WARNINGS
   archive: pending
-next_recommended: sdd-apply for work unit 6 (Phase 6, Web SPA) -- work unit 5
-  (Phase 5 API layer, PR #6 + PR #7) verified PASS WITH WARNINGS
+next_recommended: sdd-verify for work unit 6 (Phase 6, Web SPA, all 12 tasks
+  done, split across 5 chained PRs feat/web-tokens..feat/web-spa) -- then
+  sdd-apply for work unit 7 (Phase 7, Integration/E2E)
 remote_repo: https://github.com/ArcKelMiranda/FA_Interface.git
 git_local: initialized, remote "origin" added, no commits yet
 chain_strategy: feature-branch-chain
@@ -515,3 +516,95 @@ work_unit_5_verify_result:
     (color-independent disabled-state) is 100% UI scope, correctly
     untested here. Strict envelope reports 0/0 per the Work Unit 2/3
     convention (only fully end-to-end compliant scenarios count)
+work_unit_6_result:
+  status: done
+  scope: Phase 6 Web SPA (YHAT Design System v1.0), tasks 6.1-6.12, all 12
+    marked [x] in tasks.md with inline NOTE/RESOLVED annotations
+  delivery: split into 5 chained PRs (feature-branch-chain) rather than one --
+    the combined diff (2920 changed lines vs feat/api-write-config, including
+    a 250-line generated package-lock.json) far exceeds the 800-line session
+    review budget. Each PR maps to one cohesive, independently-testable
+    commit already produced during one continuous apply session (same
+    "cherry-pick/branch-per-checkpoint" pattern as work unit 5's split);
+    every intermediate branch's own test suite passes standalone
+    (independently re-run per branch: 109/120/133/139/144 tests respectively)
+  branches_and_prs:
+    - branch: feat/web-tokens (off feat/api-write-config)
+      scope: tasks 6.1, 6.4, 6.5 -- tokens.css, status-meta.ts (status/texture
+        mapping), StatusBadge, Fingerprint; jsdom Vitest project wiring
+        (@testing-library/react + jest-dom + user-event)
+      diff: 693 changed lines
+      tests_at_this_commit: 109/109 (101 baseline + 8 new)
+    - branch: feat/web-drawer (off feat/web-tokens)
+      scope: tasks 6.6, 6.7, 6.8 -- OverrideMarker, FaEditor (3 modes +
+        discarded reactivation), FieldDrawer (role=dialog aria-modal=true,
+        Escape-to-close, catalog search filter)
+      diff: 667 changed lines
+      tests_at_this_commit: 120/120
+    - branch: feat/web-table (off feat/web-drawer)
+      scope: tasks 6.2 (partial -- KpiRow only, full shell lands in the last
+        slice), 6.3, 6.9, 6.12 -- BatchTable (filterable, hover/selected,
+        density), Filters, KpiRow, EmptyState, ErrorState
+      diff: 719 changed lines
+      tests_at_this_commit: 133/133
+    - branch: feat/web-confirm (off feat/web-table)
+      scope: tasks 6.10, 6.11 -- ConfirmControl (two-step batch-number
+        retype + "Revisé el plan" gate, accent #00E3DB reserved to this
+        control), PlanReview (disabled commit CTA with stated reason,
+        writeToolsEnabled seam for embedding ConfirmControl later)
+      diff: 271 changed lines
+      tests_at_this_commit: 139/139
+    - branch: feat/web-spa (off feat/web-confirm, tip of this work unit)
+      scope: task 6.2 (page shell completion) -- App.tsx container (Header
+        -> PageTitle -> Filters -> KpiRow -> BatchTable -> Footer,
+        load/empty/error/loaded states, fingerprint->drawer->override round
+        trip, "Preparar alta"->plan-review hand-off), api/client.ts fetch
+        wrappers, Header/PageTitle/Footer, main.tsx wiring; also fixes
+        FaEditor.tsx/FieldDrawer.tsx optional-field types to the zod
+        `| undefined` convention so a standalone strict tsc pass over
+        src/web (ad hoc, since the root tsconfig excludes src/web from
+        `npm run typecheck` by design) is clean
+      diff: 588 changed lines
+      tests_at_this_commit: 144/144 (full suite)
+  tests: 144/144 passing full suite (43 new: StatusBadge 4, Fingerprint 4,
+    OverrideMarker 2, FaEditor 5, FieldDrawer 4, Filters 5, BatchTable 5,
+    KpiRow 1, EmptyState 1, ErrorState 1, ConfirmControl 3, PlanReview 3,
+    App 5); npm run typecheck clean; npm run build clean (tsc + vite);
+    additionally verified with a standalone strict `tsc --noEmit` pass over
+    src/web (same compilerOptions as tsconfig.json, since the root config
+    excludes src/web by design) -- clean after the exactOptionalPropertyTypes
+    fixes in the final slice
+  tdd_mode: strict TDD followed for every task with real interactive/
+    conditional logic (table filtering, drawer open/close+Escape, FA editor
+    mode switching, fingerprint->drawer wiring, confirm-control gating,
+    status badge state mapping, batch load/empty/error states) -- RED
+    confirmed via `npx vitest run --project web <file>` before each
+    component existed, then implemented to GREEN. tokens.css (6.1) and the
+    three purely-presentational shell pieces (Header/PageTitle/Footer) have
+    no dedicated test, per the session's explicit guidance for
+    non-interactive presentational components.
+  deviations:
+    - OverrideMarker's "isOverride" state is client-side/session-only (see
+      task 6.8 NOTE above) -- the GET /api/batches/:id contract has no
+      override-marker field to round-trip; a page reload keeps the
+      corrected value but loses the "Editado" badge
+    - PlanReview/ConfirmControl's write-tools-enabled path is built and
+      tested but not reachable from App.tsx in production yet -- there is
+      no live config endpoint exposing WRITE_TOOLS_ENABLED to the browser,
+      and wiring a real write-commit call only makes sense once
+      yhat-mcp-server ships write tools (blocked task 8.4)
+    - FieldDrawer's "catalog search" filters the field's own alternatives
+      list client-side rather than issuing a fresh live MCP query per
+      keystroke -- no live catalog-search API endpoint exists in this
+      phase's scope (see task 6.6 NOTE)
+  ai_attribution_scan: clean, zero Co-Authored-By/Claude Code footers/
+    session links across all 5 implementation commits (grep across the
+    full feat/api-write-config..feat/web-spa range)
+  engram_tooling_gap: mem_search/mem_get_observation/mem_save and every
+    other mem_* tool were absent from this session's own tool inventory
+    (Read, Edit, Write, Glob, Grep, Bash only) -- same recurring gap
+    independently noted for every prior apply/verify session on this
+    change. apply-progress could only be persisted to the OpenSpec side of
+    the hybrid artifact store (this state.yaml block plus tasks.md
+    checkboxes), not to Engram under sdd/direct-db-integration/apply-progress
+    as instructed.
